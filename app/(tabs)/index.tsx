@@ -1,98 +1,235 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import MapView from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/theme';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const ACCENT = Colors.light.tint;
+const ONLINE_GREEN = '#22c55e';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [isOnline, setIsOnline] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const insets = useSafeAreaInsets();
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const showSystemActiveToast = () => {
+    // Fade in
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+
+    setShowToast(true);
+
+    // Clear any existing timer
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+
+    // Fade out after 5s
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => setShowToast(false));
+    }, 2000);
+  };
+
+  const handleToggle = () => {
+    const goingOnline = !isOnline;
+    setIsOnline(goingOnline);
+    if (goingOnline) showSystemActiveToast();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      {/* Map */}
+      <MapView
+        style={styles.map}
+        initialRegion={{
+          latitude: 15.4748,
+          longitude: 120.9640,
+          latitudeDelta: 0.06,
+          longitudeDelta: 0.06,
+        }}
+        showsUserLocation
+        showsMyLocationButton={false}
+      />
+
+      {/* Earnings pill */}
+      <TouchableOpacity
+        style={[styles.earningsPill, { top: insets.top + 10 }]}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="home" size={16} color="#fff" />
+        <Text style={styles.earningsText}>Earnings</Text>
+      </TouchableOpacity>
+
+      {/* Bottom bar: power button + toast side by side */}
+      <View style={[styles.bottomBar, { bottom: insets.top + 0 }]}>
+        {/* Power circle — only shown when online */}
+        {isOnline && (
+          <TouchableOpacity
+            style={styles.powerCircleOnline}
+            onPress={handleToggle}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="power" size={26} color="#fff" />
+          </TouchableOpacity>
+        )}
+
+        {/* System Active toast — shown right after going online */}
+        {showToast && (
+          <Animated.View style={[styles.toastPill, { opacity: toastOpacity }]}>
+            <Text style={styles.toastText}>System Active. Stay safe on the road!</Text>
+          </Animated.View>
+        )}
+
+        {/* Online + toast gone: just the green circle stays, no extra button */}
+
+        {/* Offline: show full-width Go Online pill */}
+        {!isOnline && !showToast && (
+          <TouchableOpacity
+            style={styles.goOnlineButton}
+            onPress={handleToggle}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.goOnlineText}>Go Online</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  earningsPill: {
+    position: 'absolute',
+    left: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: '#3a5a4a',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  earningsText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  bottomBar: {
     position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  // Power circle (offline = dark, online = green)
+  powerCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  powerCircleOnline: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#22c55e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  // Toast pill
+  toastPill: {
+    flex: 1,
+    backgroundColor: ONLINE_GREEN,
+    borderRadius: 50,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  toastText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  // Go Online pill (when offline)
+  goOnlineButton: {
+    flex: 1,
+    backgroundColor: '#555',
+    borderRadius: 50,
+    paddingVertical: 16,
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  goOnlineText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  // Go Offline pill (when online, toast gone)
+  goOfflineButton: {
+    flex: 1,
+    backgroundColor: '#d32f2f',
+    borderRadius: 50,
+    paddingVertical: 16,
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  goOfflineText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
+

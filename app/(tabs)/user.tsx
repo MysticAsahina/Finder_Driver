@@ -1,0 +1,183 @@
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
+const DARK_GREEN = '#1a4a3a';
+
+const OPTIONS = [
+    { icon: 'headset-outline' as const, label: 'Help Centre' },
+    { icon: 'settings-outline' as const, label: 'Edit Profile' },
+    { icon: 'document-text-outline' as const, label: 'Terms and Privacy Policy' },
+    { icon: 'information-circle-outline' as const, label: 'About FINDER' },
+];
+
+export default function UserScreen() {
+    const router = useRouter();
+
+    return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Title */}
+                <Text style={styles.title}>My Account</Text>
+
+                {/* Profile Card */}
+                <TouchableOpacity style={styles.profileCard} activeOpacity={0.8} onPress={() => router.push('/edit-profile')}>
+                    <View style={styles.avatarCircle}>
+                        <Ionicons name="person" size={28} color="#999" />
+                    </View>
+                    <Text style={styles.profileName}>Marcelino Zafra</Text>
+                    <Ionicons name="chevron-forward" size={22} color="#999" />
+                </TouchableOpacity>
+
+                {/* Options */}
+                <Text style={styles.sectionLabel}>Options</Text>
+
+                <View style={styles.optionsList}>
+                    {OPTIONS.map((item, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            style={[
+                                styles.optionRow,
+                                index < OPTIONS.length - 1 && styles.optionBorder,
+                            ]}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                                if (item.label === 'Terms and Privacy Policy') {
+                                    router.push('/terms');
+                                } else if (item.label === 'About FINDER') {
+                                    router.push('/about');
+                                } else if (item.label === 'Edit Profile') {
+                                    router.push('/edit-profile');
+                                } else if (item.label === 'Help Centre') {
+                                    router.push('/help-centre');
+                                }
+                            }}
+                        >
+                            <View style={styles.optionLeft}>
+                                <Ionicons name={item.icon} size={22} color={DARK_GREEN} />
+                                <Text style={styles.optionLabel}>{item.label}</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* Spacer */}
+                <View style={styles.spacer} />
+
+                {/* Logout */}
+                <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85}>
+                    <Text style={styles.logoutText}>LOGOUT</Text>
+                </TouchableOpacity>
+            </ScrollView>
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 30,
+        flexGrow: 1,
+    },
+    title: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: DARK_GREEN,
+        marginBottom: 16,
+    },
+    // Profile card
+    profileCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#e8f5e9',
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#c8e6c9',
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        marginBottom: 28,
+    },
+    avatarCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#d0ddd2',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    profileName: {
+        flex: 1,
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+    },
+    // Options section
+    sectionLabel: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#777',
+        marginBottom: 10,
+    },
+    optionsList: {
+        borderLeftWidth: 3,
+        borderLeftColor: DARK_GREEN,
+        borderRadius: 2,
+        marginLeft: 4,
+    },
+    optionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 18,
+        paddingHorizontal: 14,
+    },
+    optionBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    optionLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+    },
+    optionLabel: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#333',
+    },
+    // Spacer
+    spacer: {
+        flex: 1,
+        minHeight: 40,
+    },
+    // Logout
+    logoutButton: {
+        backgroundColor: '#d32f2f',
+        borderRadius: 50,
+        paddingVertical: 16,
+        alignItems: 'center',
+        elevation: 2,
+        shadowColor: '#d32f2f',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    logoutText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+        letterSpacing: 1.5,
+    },
+});
