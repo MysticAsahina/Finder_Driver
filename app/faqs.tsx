@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 const FAQ_ITEMS = [
     {
@@ -101,7 +101,7 @@ export default function FaqsScreen() {
                                 <Ionicons
                                     name={expanded.includes(index) ? 'checkmark' : 'chevron-forward'}
                                     size={20}
-                                    color={DARK_GREEN}
+                                    color={ACCENT}
                                 />
                             </TouchableOpacity>
                             {expanded.includes(index) && (
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
         width: 34,
         height: 34,
         borderRadius: 17,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     scrollContent: {
         padding: 20,

@@ -1,17 +1,36 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Shared color theme for FINDER apps (user + driver).
+ * All screens should use these tokens for consistency.
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#FF5F00';
+// ── Primary palette ────────────────────────────────────────────────────────
+export const ACCENT = '#FF5F00';   // primary orange
+export const ACCENT_LIGHT = '#FFF3EC'; // light orange tint (backgrounds, pills)
+export const ACCENT_MID = '#FFD0B0'; // medium orange (avatar bg, highlights)
+
+// ── Neutrals ───────────────────────────────────────────────────────────────
+export const BG_WHITE = '#ffffff';
+export const BG_LIGHT = '#fafafa';
+export const BORDER = '#e8e8e8';
+export const TEXT_DARK = '#1a1a1a';
+export const TEXT_MID = '#333333';
+export const TEXT_SOFT = '#666666';
+export const TEXT_HINT = '#aaaaaa';
+
+// ── Status ─────────────────────────────────────────────────────────────────
+export const STATUS_SUCCESS = '#22c55e';
+export const STATUS_ERROR = '#cc2222';
+
+// ── Legacy Colors export (for existing useColorScheme hooks) ──────────────
+const tintColorLight = ACCENT;
 const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: TEXT_DARK,
+    background: BG_WHITE,
     tint: tintColorLight,
     icon: '#687076',
     tabIconDefault: '#687076',
@@ -29,13 +48,9 @@ export const Colors = {
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {

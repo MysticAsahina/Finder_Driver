@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 const OPTIONS = [
     { icon: 'headset-outline' as const, label: 'Help Centre' },
@@ -17,7 +17,7 @@ export default function UserScreen() {
     const router = useRouter();
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={styles.container}>
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -59,7 +59,7 @@ export default function UserScreen() {
                             }}
                         >
                             <View style={styles.optionLeft}>
-                                <Ionicons name={item.icon} size={22} color={DARK_GREEN} />
+                                <Ionicons name={item.icon} size={22} color={ACCENT} />
                                 <Text style={styles.optionLabel}>{item.label}</Text>
                             </View>
                             <Ionicons name="chevron-forward" size={20} color="#ccc" />
@@ -87,23 +87,23 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 20,
         paddingTop: 12,
-        paddingBottom: 30,
+        paddingBottom: 100,
         flexGrow: 1,
     },
     title: {
         fontSize: 22,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
         marginBottom: 16,
     },
     // Profile card
     profileCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#e8f5e9',
+        backgroundColor: '#FFF3EC',
         borderRadius: 14,
         borderWidth: 1.5,
-        borderColor: '#c8e6c9',
+        borderColor: '#FFD0B0',
         paddingHorizontal: 14,
         paddingVertical: 14,
         marginBottom: 28,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#d0ddd2',
+        backgroundColor: '#FFD0B0',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     },
     optionsList: {
         borderLeftWidth: 3,
-        borderLeftColor: DARK_GREEN,
+        borderLeftColor: ACCENT,
         borderRadius: 2,
         marginLeft: 4,
     },

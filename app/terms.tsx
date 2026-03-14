@@ -192,13 +192,13 @@ const styles = StyleSheet.create({
         width: 34,
         height: 34,
         borderRadius: 17,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: ACCENT,
         alignItems: 'center',
         justifyContent: 'center',
     },
     closeIcon: {
         fontSize: 14,
-        color: '#333',
+        color: '#fff',
         fontWeight: '600',
     },
     tabRow: {

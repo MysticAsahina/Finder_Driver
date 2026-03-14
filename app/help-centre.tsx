@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 export default function HelpCentreScreen() {
     const router = useRouter();
@@ -52,7 +52,7 @@ export default function HelpCentreScreen() {
                 {/* Contact Support Card */}
                 <TouchableOpacity style={styles.supportCard} activeOpacity={0.8} onPress={() => router.push('/support-chat')}>
                     <View style={styles.supportIcon}>
-                        <Ionicons name="headset" size={24} color={DARK_GREEN} />
+                        <Ionicons name="headset" size={24} color={ACCENT} />
                     </View>
                     <Text style={styles.supportText}>
                         Contact support for assistance or to share your feedback.
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
         width: 34,
         height: 34,
         borderRadius: 17,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     divider: {
         height: 1,
@@ -131,24 +131,27 @@ const styles = StyleSheet.create({
     supportCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#e8f5e9',
+        backgroundColor: '#FFF3EC',
         borderRadius: 18,
         paddingHorizontal: 16,
         paddingVertical: 18,
         gap: 14,
+        borderWidth: 1,
+        borderColor: '#FFD0B0',
     },
     supportIcon: {
         width: 42,
         height: 42,
         borderRadius: 21,
-        backgroundColor: '#d0e8d2',
+        backgroundColor: '#FFD0B0',
         alignItems: 'center',
         justifyContent: 'center',
     },
     supportText: {
         flex: 1,
         fontSize: 13,
-        color: '#444',
+        color: ACCENT,
         lineHeight: 19,
+        fontWeight: '600',
     },
 });

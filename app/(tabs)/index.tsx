@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     left: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3a5a4a',
+    backgroundColor: ACCENT,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   // Go Online pill (when offline)
   goOnlineButton: {
     flex: 1,
-    backgroundColor: '#555',
+    backgroundColor: ACCENT,
     borderRadius: 50,
     paddingVertical: 16,
     alignItems: 'center',

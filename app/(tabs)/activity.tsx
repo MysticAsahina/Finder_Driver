@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 
 const ACCENT = Colors.light.tint;
-const DARK_GREEN = '#1a4a3a';
 
 type TabKey = 'requests' | 'completed' | 'cancelled';
 
@@ -289,7 +288,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
         paddingHorizontal: 20,
         paddingTop: 12,
         paddingBottom: 8,
@@ -309,7 +308,7 @@ const styles = StyleSheet.create({
         borderBottomColor: 'transparent',
     },
     activeTab: {
-        borderBottomColor: DARK_GREEN,
+        borderBottomColor: ACCENT,
     },
     tabText: {
         fontSize: 14,
@@ -317,7 +316,7 @@ const styles = StyleSheet.create({
         color: '#aaa',
     },
     activeTabText: {
-        color: DARK_GREEN,
+        color: ACCENT,
         fontWeight: '700',
     },
     // Scroll
@@ -356,14 +355,14 @@ const styles = StyleSheet.create({
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
     },
     dottedLine: {
         width: 2,
         height: 20,
         borderStyle: 'dotted',
         borderWidth: 1,
-        borderColor: DARK_GREEN,
+        borderColor: ACCENT,
         marginVertical: 2,
     },
     routeTexts: {
@@ -387,7 +386,7 @@ const styles = StyleSheet.create({
     },
     // View Details
     viewDetailsBtn: {
-        backgroundColor: '#2196F3',
+        backgroundColor: ACCENT,
         borderRadius: 50,
         paddingVertical: 12,
         alignItems: 'center',
@@ -445,7 +444,7 @@ const styles = StyleSheet.create({
     },
     modalDate: {
         fontSize: 12,
-        color: DARK_GREEN,
+        color: ACCENT,
         fontWeight: '500',
     },
     modalDivider: {

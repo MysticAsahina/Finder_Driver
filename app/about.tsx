@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 export default function AboutScreen() {
     const router = useRouter();
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
         width: 34,
         height: 34,
         borderRadius: 17,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#222',
+        color: ACCENT,
         marginBottom: 18,
     },
     paragraph: {

@@ -5,7 +5,7 @@ import {
     TouchableOpacity,
     StyleSheet,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -17,8 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
 
-const DARK_GREEN = '#1a4a3a';
-const BLUE = '#2196F3';
+const ACCENT = '#FF5F00';
 
 // Drop off location — Freedom Park, Cabanatuan
 const DROPOFF_COORDS = {
@@ -40,8 +39,8 @@ const NAVIGATE_REGION = {
     longitudeDelta: 0.05,
 };
 
-const SHEET_EXPANDED_HEIGHT = 380;
-const SHEET_COLLAPSED_HEIGHT = 190;
+const SHEET_EXPANDED_HEIGHT = 420;
+const SHEET_COLLAPSED_HEIGHT = 240;
 
 export default function TripStartedScreen() {
     const router = useRouter();
@@ -121,92 +120,88 @@ export default function TripStartedScreen() {
                 showsUserLocation
                 showsMyLocationButton={false}
             >
-                <Marker coordinate={DROPOFF_COORDS} pinColor={BLUE} />
+                <Marker coordinate={DROPOFF_COORDS} pinColor={ACCENT} />
             </MapView>
 
             {/* BOTTOM SHEET */}
-            <Animated.View
-                style={[
-                    styles.bottomSheet,
-                    { paddingBottom: insets.bottom > 0 ? insets.bottom : 16 },
-                    animatedSheetStyle,
-                ]}
-            >
-                {/* Draggable Handle */}
-                <PanGestureHandler
-                    onGestureEvent={onGestureEvent}
-                    onHandlerStateChange={(e) => {
-                        if (e.nativeEvent.state === 2) onGestureBegan();
-                        if (e.nativeEvent.state === 5) onGestureEnd(e);
-                    }}
-                >
-                    <Animated.View style={styles.handleArea}>
-                        <View style={styles.handle} />
-                    </Animated.View>
-                </PanGestureHandler>
-
-                {/* Always visible: Trip started title + Passenger */}
-                <Text style={styles.sheetTitle}>Trip started</Text>
-
-                <View style={styles.divider} />
-
-                <View style={styles.row}>
-                    <Text style={styles.label}>Passenger</Text>
-                    <Text style={styles.value}>{passengerName}</Text>
-                </View>
-
-                {/* Expandable: Drop off + Fare */}
-                <Animated.View style={[styles.expandableContent, animatedContentStyle]}>
-                    {/* Drop off location */}
-                    <View style={styles.locationBlock}>
-                        <View style={styles.locationRow}>
-                            <View style={styles.dotOutline} />
-                            <Text style={styles.locationTitle}>Drop off location</Text>
-                        </View>
-                        <Text style={styles.locationAddress}>{dropoffFull}</Text>
-                    </View>
-
-                    {/* Total Fare */}
-                    <View style={styles.fareRow}>
-                        <Text style={styles.fareLabel}>Total Fare</Text>
-                        <Text style={styles.fareValue}>₱ {fare}</Text>
-                    </View>
-                </Animated.View>
-
-                <View style={styles.divider} />
-
-                {/* Navigate — single centered button */}
-                <View style={styles.actionsRow}>
-                    <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={snapToCollapsed}
-                        activeOpacity={0.7}
+            <Animated.View style={[styles.bottomSheet, animatedSheetStyle]}>
+                <SafeAreaView edges={['bottom']} style={styles.sheetSafeContainer}>
+                    {/* Draggable Handle */}
+                    <PanGestureHandler
+                        onGestureEvent={onGestureEvent}
+                        onHandlerStateChange={(e) => {
+                            if (e.nativeEvent.state === 2) onGestureBegan();
+                            if (e.nativeEvent.state === 5) onGestureEnd(e);
+                        }}
                     >
-                        <Ionicons name="navigate-outline" size={22} color={DARK_GREEN} />
-                        <Text style={[styles.actionText, { color: DARK_GREEN }]}>Navigate</Text>
-                    </TouchableOpacity>
-                </View>
+                        <Animated.View style={styles.handleArea}>
+                            <View style={styles.handle} />
+                        </Animated.View>
+                    </PanGestureHandler>
 
-                {/* DROP OFF button */}
-                <TouchableOpacity
-                    style={styles.dropOffBtn}
-                    activeOpacity={0.85}
-                    onPress={() =>
-                        router.push({
-                            pathname: '/drop-off',
-                            params: {
-                                name: passengerName,
-                                fare: fare,
-                                dropoffFull: dropoffFull,
-                                pickupFull: 'SM City Cabanatuan\nBarangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija',
-                                duration: '7 minutes',
-                                distance: '3.6 Km',
-                            },
-                        })
-                    }
-                >
-                    <Text style={styles.dropOffText}>DROP OFF</Text>
-                </TouchableOpacity>
+                    {/* Passenger name — always visible */}
+                    <View style={styles.row}>
+                        <Text style={styles.label}>Passenger</Text>
+                        <Text style={styles.value}>{passengerName}</Text>
+                    </View>
+
+                    {/* Title and divider — always visible below name */}
+                    <Text style={styles.sheetTitle}>Trip started</Text>
+                    <View style={styles.divider} />
+
+                    {/* Expandable: Drop off + Fare */}
+                    <Animated.View style={[styles.expandableContent, animatedContentStyle]}>
+                        {/* Drop off location */}
+                        <View style={styles.locationBlock}>
+                            <View style={styles.locationRow}>
+                                <View style={styles.dotOutline} />
+                                <Text style={styles.locationTitle}>Drop off location</Text>
+                            </View>
+                            <Text style={styles.locationAddress}>{dropoffFull}</Text>
+                        </View>
+
+                        {/* Total Fare */}
+                        <View style={styles.fareRow}>
+                            <Text style={styles.fareLabel}>Total Fare</Text>
+                            <Text style={styles.fareValue}>₱ {fare}</Text>
+                        </View>
+                    </Animated.View>
+
+                    <View style={styles.divider} />
+
+                    {/* Navigate — single centered button */}
+                    <View style={styles.actionsRow}>
+                        <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={snapToCollapsed}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="navigate-outline" size={22} color={ACCENT} />
+                            <Text style={[styles.actionText, { color: ACCENT }]}>Navigate</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* DROP OFF button */}
+                    <TouchableOpacity
+                        style={styles.dropOffBtn}
+                        activeOpacity={0.85}
+                        onPress={() =>
+                            router.push({
+                                pathname: '/drop-off',
+                                params: {
+                                    name: passengerName,
+                                    fare: fare,
+                                    dropoffFull: dropoffFull,
+                                    pickupFull: 'SM City Cabanatuan\nBarangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija',
+                                    duration: '7 minutes',
+                                    distance: '3.6 Km',
+                                },
+                            })
+                        }
+                    >
+                        <Text style={styles.dropOffText}>DROP OFF</Text>
+                    </TouchableOpacity>
+                </SafeAreaView>
             </Animated.View>
         </GestureHandlerRootView>
     );
@@ -225,13 +220,17 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        paddingHorizontal: 20,
         overflow: 'hidden',
         elevation: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.1,
         shadowRadius: 12,
+    },
+    sheetSafeContainer: {
+        flex: 1,
+        paddingHorizontal: 20,
+        paddingBottom: 24,
     },
     handleArea: {
         alignItems: 'center',
@@ -287,12 +286,12 @@ const styles = StyleSheet.create({
         borderRadius: 7,
         backgroundColor: '#fff',
         borderWidth: 2.5,
-        borderColor: DARK_GREEN,
+        borderColor: ACCENT,
     },
     locationTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     locationAddress: {
         fontSize: 12.5,
@@ -305,7 +304,7 @@ const styles = StyleSheet.create({
     },
     fareLabel: {
         fontSize: 12,
-        color: '#5a8a6a',
+        color: '#666',
         marginBottom: 2,
     },
     fareValue: {
@@ -332,7 +331,7 @@ const styles = StyleSheet.create({
     },
     dropOffBtn: {
         borderWidth: 1.5,
-        borderColor: BLUE,
+        borderColor: ACCENT,
         borderRadius: 50,
         paddingVertical: 14,
         alignItems: 'center',
@@ -340,7 +339,7 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     dropOffText: {
-        color: BLUE,
+        color: ACCENT,
         fontSize: 15,
         fontWeight: '700',
         letterSpacing: 1,

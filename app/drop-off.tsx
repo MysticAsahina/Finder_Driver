@@ -10,8 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
-const BLUE = '#2196F3';
+const ACCENT = '#FF5F00';
 
 function generateRefId() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -145,7 +144,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     scrollContent: {
         paddingHorizontal: 20,
@@ -210,7 +209,7 @@ const styles = StyleSheet.create({
         width: 16,
         height: 16,
         borderRadius: 8,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
     },
     dotOutline: {
         width: 16,
@@ -218,7 +217,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         backgroundColor: '#fff',
         borderWidth: 2.5,
-        borderColor: DARK_GREEN,
+        borderColor: ACCENT,
     },
     locationTitle: {
         fontSize: 14,
@@ -233,7 +232,7 @@ const styles = StyleSheet.create({
     },
     // Confirm button
     confirmBtn: {
-        backgroundColor: BLUE,
+        backgroundColor: ACCENT,
         borderRadius: 50,
         paddingVertical: 16,
         alignItems: 'center',

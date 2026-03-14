@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 const PROFILE_FIELDS = [
     {
@@ -56,7 +56,7 @@ export default function EditProfileScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-                        <Ionicons name="arrow-back" size={24} color={DARK_GREEN} />
+                        <Ionicons name="arrow-back" size={24} color={ACCENT} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>User Profile</Text>
                     <View style={{ width: 24 }} />
@@ -110,7 +110,7 @@ export default function EditProfileScreen() {
                                 </View>
                             )}
                         </View>
-                        <Ionicons name="pencil" size={18} color={DARK_GREEN} />
+                        <Ionicons name="pencil" size={18} color={ACCENT} />
                     </TouchableOpacity>
                 ))}
 
@@ -126,11 +126,11 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#e8f5e9',
+        backgroundColor: '#FFF3EC',
     },
     // Top section
     topSection: {
-        backgroundColor: '#e8f5e9',
+        backgroundColor: '#FFF3EC',
         paddingBottom: 40,
     },
     header: {
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     avatarContainer: {
         alignItems: 'center',
@@ -154,15 +154,15 @@ const styles = StyleSheet.create({
         height: 72,
         borderRadius: 36,
         borderWidth: 2.5,
-        borderColor: DARK_GREEN,
-        backgroundColor: '#e8f5e9',
+        borderColor: ACCENT,
+        backgroundColor: '#FFD0B0',
         alignItems: 'center',
         justifyContent: 'center',
     },
     avatarText: {
         fontSize: 24,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     // White card
     formCard: {
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
         fontWeight: '400',
     },
     verifiedBadge: {
-        backgroundColor: '#e8f5e9',
+        backgroundColor: '#FFF3EC',
         paddingHorizontal: 10,
         paddingVertical: 3,
         borderRadius: 8,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     verifiedText: {
         fontSize: 11,
         fontWeight: '600',
-        color: '#43a047',
+        color: ACCENT,
     },
     // Delete
     deleteBtn: {

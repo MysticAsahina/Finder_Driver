@@ -5,7 +5,7 @@ import {
     TouchableOpacity,
     StyleSheet,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -17,8 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
 
-const DARK_GREEN = '#1a4a3a';
-const BLUE = '#2196F3';
+const ACCENT = '#FF5F00';
 
 // SM City Cabanatuan coordinates
 const PICKUP_COORDS = {
@@ -41,8 +40,8 @@ const NAVIGATE_REGION = {
 };
 
 // Sheet height constants
-const SHEET_EXPANDED_HEIGHT = 420;
-const SHEET_COLLAPSED_HEIGHT = 200;
+const SHEET_EXPANDED_HEIGHT = 460;
+const SHEET_COLLAPSED_HEIGHT = 260;
 
 export default function PickupPassengerScreen() {
     const router = useRouter();
@@ -133,124 +132,121 @@ export default function PickupPassengerScreen() {
                 showsUserLocation
                 showsMyLocationButton={false}
             >
-                <Marker coordinate={PICKUP_COORDS} pinColor={DARK_GREEN} />
+                <Marker coordinate={PICKUP_COORDS} pinColor={ACCENT} />
             </MapView>
 
             {/* BOTTOM SHEET */}
-            <Animated.View
-                style={[
-                    styles.bottomSheet,
-                    { paddingBottom: insets.bottom > 0 ? insets.bottom : 16 },
-                    animatedSheetStyle,
-                ]}
-            >
-                {/* Draggable Handle */}
-                <PanGestureHandler
-                    onGestureEvent={onGestureEvent}
-                    onHandlerStateChange={(e) => {
-                        if (e.nativeEvent.state === 2) onGestureBegan(); // BEGAN
-                        if (e.nativeEvent.state === 5) onGestureEnd(e); // END
-                    }}
-                >
-                    <Animated.View style={styles.handleArea}>
-                        <View style={styles.handle} />
-                    </Animated.View>
-                </PanGestureHandler>
+            <Animated.View style={[styles.bottomSheet, animatedSheetStyle]}>
+                <SafeAreaView edges={['bottom']} style={styles.sheetSafeContainer}>
+                    {/* Draggable Handle */}
+                    <PanGestureHandler
+                        onGestureEvent={onGestureEvent}
+                        onHandlerStateChange={(e) => {
+                            if (e.nativeEvent.state === 2) onGestureBegan(); // BEGAN
+                            if (e.nativeEvent.state === 5) onGestureEnd(e); // END
+                        }}
+                    >
+                        <Animated.View style={styles.handleArea}>
+                            <View style={styles.handle} />
+                        </Animated.View>
+                    </PanGestureHandler>
 
-                {/* Passenger name — always visible */}
-                <View style={styles.row}>
-                    <Text style={styles.label}>Passenger</Text>
-                    <Text style={styles.value}>{passengerName}</Text>
-                </View>
+                    {/* Passenger name — always visible */}
+                    <View style={styles.row}>
+                        <Text style={styles.label}>Passenger</Text>
+                        <Text style={styles.value}>{passengerName}</Text>
+                    </View>
 
-                {/* Expandable content — fades in/out */}
-                <Animated.View style={[styles.expandableContent, animatedContentStyle]}>
+                    {/* Title and divider — always visible below name */}
                     <Text style={styles.sheetTitle}>Pick up passenger</Text>
+                    <View style={styles.divider} />
+
+                    {/* Expandable content — fades in/out */}
+                    <Animated.View style={[styles.expandableContent, animatedContentStyle]}>
+
+                        {/* Pick up location */}
+                        <View style={styles.locationBlock}>
+                            <View style={styles.locationRow}>
+                                <View style={styles.dotFilled} />
+                                <Text style={styles.locationTitle}>Pick up location</Text>
+                            </View>
+                            <Text style={styles.locationAddress}>{pickupFull}</Text>
+                        </View>
+
+                        {/* Total Fare */}
+                        <View style={styles.fareRow}>
+                            <Text style={styles.fareLabel}>Total Fare</Text>
+                            <Text style={styles.fareValue}>₱ {fare}</Text>
+                        </View>
+                    </Animated.View>
 
                     <View style={styles.divider} />
 
-                    {/* Pick up location */}
-                    <View style={styles.locationBlock}>
-                        <View style={styles.locationRow}>
-                            <View style={styles.dotFilled} />
-                            <Text style={styles.locationTitle}>Pick up location</Text>
-                        </View>
-                        <Text style={styles.locationAddress}>{pickupFull}</Text>
+                    {/* Actions row — always visible */}
+                    <View style={styles.actionsRow}>
+                        <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() =>
+                                router.push({ pathname: '/passenger-chat', params: { name: passengerName } })
+                            }
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="chatbubble-outline" size={22} color="#555" />
+                            <Text style={styles.actionText}>Chat</Text>
+                        </TouchableOpacity>
+
+                        {!arrived && (
+                            <>
+                                <View style={styles.actionDivider} />
+                                <TouchableOpacity
+                                    style={styles.actionBtn}
+                                    onPress={handleNavigate}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="navigate-outline" size={22} color={ACCENT} />
+                                    <Text style={[styles.actionText, { color: ACCENT }]}>Navigate</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        <View style={styles.actionDivider} />
+
+                        <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => router.back()}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="close" size={24} color="#555" />
+                            <Text style={styles.actionText}>Cancel</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Total Fare */}
-                    <View style={styles.fareRow}>
-                        <Text style={styles.fareLabel}>Total Fare</Text>
-                        <Text style={styles.fareValue}>₱ {fare}</Text>
-                    </View>
-                </Animated.View>
-
-                <View style={styles.divider} />
-
-                {/* Actions row — always visible */}
-                <View style={styles.actionsRow}>
+                    {/* ARRIVED / PICK UP button */}
                     <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() =>
-                            router.push({ pathname: '/passenger-chat', params: { name: passengerName } })
-                        }
-                        activeOpacity={0.7}
+                        style={arrived ? styles.pickupBtn : styles.arrivedBtn}
+                        activeOpacity={0.85}
+                        onPress={() => {
+                            if (!arrived) {
+                                setArrived(true);
+                                snapToExpanded();
+                            } else {
+                                router.push({
+                                    pathname: '/trip-started',
+                                    params: {
+                                        name: passengerName,
+                                        fare: fare,
+                                        dropoffFull: params.dropoffFull ||
+                                            'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija',
+                                    },
+                                });
+                            }
+                        }}
                     >
-                        <Ionicons name="chatbubble-outline" size={22} color="#555" />
-                        <Text style={styles.actionText}>Chat</Text>
+                        <Text style={arrived ? styles.pickupText : styles.arrivedText}>
+                            {arrived ? 'PICK UP' : 'ARRIVED'}
+                        </Text>
                     </TouchableOpacity>
-
-                    {!arrived && (
-                        <>
-                            <View style={styles.actionDivider} />
-                            <TouchableOpacity
-                                style={styles.actionBtn}
-                                onPress={handleNavigate}
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons name="navigate-outline" size={22} color={DARK_GREEN} />
-                                <Text style={[styles.actionText, { color: DARK_GREEN }]}>Navigate</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    <View style={styles.actionDivider} />
-
-                    <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => router.back()}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="close" size={24} color="#555" />
-                        <Text style={styles.actionText}>Cancel</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* ARRIVED / PICK UP button */}
-                <TouchableOpacity
-                    style={arrived ? styles.pickupBtn : styles.arrivedBtn}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                        if (!arrived) {
-                            setArrived(true);
-                            snapToExpanded();
-                        } else {
-                            router.push({
-                                pathname: '/trip-started',
-                                params: {
-                                    name: passengerName,
-                                    fare: fare,
-                                    dropoffFull: params.dropoffFull ||
-                                        'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija',
-                                },
-                            });
-                        }
-                    }}
-                >
-                    <Text style={arrived ? styles.pickupText : styles.arrivedText}>
-                        {arrived ? 'PICK UP' : 'ARRIVED'}
-                    </Text>
-                </TouchableOpacity>
+                </SafeAreaView>
             </Animated.View>
         </GestureHandlerRootView>
     );
@@ -269,13 +265,17 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        paddingHorizontal: 20,
         overflow: 'hidden',
         elevation: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.1,
         shadowRadius: 12,
+    },
+    sheetSafeContainer: {
+        flex: 1,
+        paddingHorizontal: 20,
+        paddingBottom: 24,
     },
     handleArea: {
         alignItems: 'center',
@@ -329,12 +329,12 @@ const styles = StyleSheet.create({
         width: 14,
         height: 14,
         borderRadius: 7,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
     },
     locationTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     locationAddress: {
         fontSize: 12.5,
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     },
     fareLabel: {
         fontSize: 12,
-        color: '#5a8a6a',
+        color: '#666',
         marginBottom: 2,
     },
     fareValue: {
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     },
     arrivedBtn: {
         borderWidth: 1.5,
-        borderColor: BLUE,
+        borderColor: ACCENT,
         borderRadius: 50,
         paddingVertical: 14,
         alignItems: 'center',
@@ -386,13 +386,13 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     arrivedText: {
-        color: BLUE,
+        color: ACCENT,
         fontSize: 15,
         fontWeight: '700',
         letterSpacing: 1,
     },
     pickupBtn: {
-        backgroundColor: BLUE,
+        backgroundColor: ACCENT,
         borderRadius: 50,
         paddingVertical: 14,
         alignItems: 'center',

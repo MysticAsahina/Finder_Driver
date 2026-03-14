@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 type FieldType = 'name' | 'mobile' | 'email' | 'mpin';
 
@@ -55,7 +55,7 @@ export default function EditFieldScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-                        <Ionicons name="arrow-back" size={24} color={DARK_GREEN} />
+                        <Ionicons name="arrow-back" size={24} color={ACCENT} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>{config.title}</Text>
                     <View style={{ width: 24 }} />
@@ -215,11 +215,11 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     accentLine: {
         height: 3,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
     },
     // Content
     content: {
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
         paddingTop: 12,
     },
     saveButton: {
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
         borderRadius: 50,
         paddingVertical: 16,
         alignItems: 'center',

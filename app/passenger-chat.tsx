@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '@/constants/theme';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 interface Message {
     id: string;
@@ -97,7 +97,22 @@ export default function PassengerChatScreen() {
                     </View>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{passengerName}</Text>
-                <View style={{ width: 38 }} />
+                <View style={styles.headerActions}>
+                    <TouchableOpacity
+                        style={styles.actionIcon}
+                        activeOpacity={0.6}
+                        onPress={() => router.push({ pathname: '/passenger-call', params: { name: passengerName, isVideo: 'false' } })}
+                    >
+                        <Ionicons name="call" size={22} color={ACCENT} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.actionIcon}
+                        activeOpacity={0.6}
+                        onPress={() => router.push({ pathname: '/passenger-call', params: { name: passengerName, isVideo: 'true' } })}
+                    >
+                        <Ionicons name="videocam" size={26} color={ACCENT} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* KeyboardAvoidingView wraps ONLY the chat body + input */}
@@ -122,7 +137,7 @@ export default function PassengerChatScreen() {
                     {/* Passenger card */}
                     <View style={styles.passengerCard}>
                         <View style={styles.passengerAvatar}>
-                            <Ionicons name="person" size={24} color={DARK_GREEN} />
+                            <Ionicons name="person" size={24} color={ACCENT} />
                         </View>
                         <View>
                             <Text style={styles.passengerName}>{passengerName}</Text>
@@ -167,7 +182,7 @@ export default function PassengerChatScreen() {
                 {/* Input bar */}
                 <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
                     <TouchableOpacity style={styles.plusBtn} activeOpacity={0.7}>
-                        <Ionicons name="add" size={24} color={DARK_GREEN} />
+                        <Ionicons name="add" size={24} color={ACCENT} />
                     </TouchableOpacity>
                     <TextInput
                         style={styles.textInput}
@@ -179,7 +194,7 @@ export default function PassengerChatScreen() {
                         returnKeyType="send"
                     />
                     <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} activeOpacity={0.7}>
-                        <Ionicons name="send" size={20} color={DARK_GREEN} />
+                        <Ionicons name="send" size={20} color={ACCENT} />
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
@@ -213,7 +228,15 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    actionIcon: {
+        padding: 4,
     },
     chatArea: {
         flex: 1,
@@ -226,19 +249,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1.5,
-        borderColor: '#c8e6c9',
+        borderColor: '#FFD0B0',
         borderRadius: 16,
         paddingHorizontal: 14,
         paddingVertical: 14,
         marginBottom: 16,
         gap: 12,
-        backgroundColor: '#f1f8f2',
+        backgroundColor: '#FFF3EC',
     },
     passengerAvatar: {
         width: 46,
         height: 46,
         borderRadius: 23,
-        backgroundColor: '#d4e8d6',
+        backgroundColor: '#FFD0B0',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -282,7 +305,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 4,
     },
     userBubble: {
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
         borderTopRightRadius: 4,
     },
     messageText: {

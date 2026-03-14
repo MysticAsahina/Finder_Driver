@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const DARK_GREEN = '#1a4a3a';
+const ACCENT = '#FF5F00';
 
 export default function TripDetailsScreen() {
     const router = useRouter();
@@ -39,7 +39,7 @@ export default function TripDetailsScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-                    <Ionicons name="arrow-back" size={24} color={DARK_GREEN} />
+                    <Ionicons name="arrow-back" size={24} color={ACCENT} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Trip Details</Text>
                 <View style={{ width: 24 }} />
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: DARK_GREEN,
+        color: ACCENT,
     },
     scrollContent: {
         paddingHorizontal: 20,
@@ -208,9 +208,9 @@ const styles = StyleSheet.create({
         width: 16,
         height: 16,
         borderRadius: 8,
-        backgroundColor: DARK_GREEN,
+        backgroundColor: ACCENT,
         borderWidth: 3,
-        borderColor: DARK_GREEN,
+        borderColor: ACCENT,
     },
     dotOutline: {
         width: 16,
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         backgroundColor: '#fff',
         borderWidth: 2.5,
-        borderColor: DARK_GREEN,
+        borderColor: ACCENT,
     },
     locationTitle: {
         fontSize: 14,
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     },
     // Accept
     acceptBtn: {
-        backgroundColor: '#2196F3',
+        backgroundColor: ACCENT,
         borderRadius: 50,
         paddingVertical: 14,
         alignItems: 'center',
