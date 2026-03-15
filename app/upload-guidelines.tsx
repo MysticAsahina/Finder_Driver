@@ -53,6 +53,34 @@ const CONTENT: Record<string, {
             'Covering the plate number or any identifying markings',
         ],
     },
+    selfie: {
+        requirements: [
+            'Take a clear selfie showing your full face',
+            'For the second photo, hold your license next to your face',
+            'Ensure the room is well-lit and your face is fully visible',
+            'Make sure the details on the license are readable when holding it',
+        ],
+        avoid: [
+            'Wearing sunglasses or hats that cover your face',
+            'Blurry or dark photos',
+            'Using filters or edited images',
+            'Covering your face with the license',
+        ],
+    },
+    orcr: {
+        requirements: [
+            'Upload a clear photo of your Official Receipt (OR) and Certificate of Registration (CR)',
+            'The text must be completely readable and not cut off',
+            'Make sure the document is well-lit and not blurry',
+            'Ensure the document is valid and up-to-date',
+        ],
+        avoid: [
+            'Blurry, dark, or unreadable photos',
+            'Covering any text or details on the document',
+            'Using photocopies if original is required (or poor quality photocopies)',
+            'Cropped or partial photos of the document',
+        ],
+    },
 };
 
 export default function UploadGuidelinesScreen() {

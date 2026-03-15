@@ -95,7 +95,7 @@ export default function DrivingLicenseScreen() {
                 <Text style={styles.fieldLabel}>Expiration date <Text style={styles.required}>*</Text></Text>
                 <TextInput style={styles.input} value={expirationDate} onChangeText={setExpirationDate} placeholder="" />
 
-                <TouchableOpacity style={styles.nextButton} onPress={() => router.push('/tricycle-details')} activeOpacity={0.85}>
+                <TouchableOpacity style={styles.nextButton} onPress={() => router.push('/face-verification')} activeOpacity={0.85}>
                     <Text style={styles.nextText}>NEXT</Text>
                 </TouchableOpacity>
             </ScrollView>

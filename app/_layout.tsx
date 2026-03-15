@@ -38,6 +38,20 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen
+            name="face-verification"
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="vehicle-registration"
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
             name="tricycle-details"
             options={{
               headerShown: false,
