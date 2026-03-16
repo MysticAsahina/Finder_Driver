@@ -114,6 +114,13 @@ export default function DriverRegistrationScreen() {
         >
           <Text style={styles.submitText}>SUBMIT</Text>
         </TouchableOpacity>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.replace('/login')} activeOpacity={0.7}>
+            <Text style={styles.footerLink}>Login</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -255,5 +262,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 1.5,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  footerLink: {
+    fontSize: 14,
+    color: ACCENT,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
 });

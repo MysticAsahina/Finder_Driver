@@ -122,7 +122,7 @@ export default function CreatePasswordScreen() {
                             <Text style={styles.createBtnText}>CREATE</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.skipBtn} activeOpacity={0.8} onPress={() => router.replace('/(tabs)')}>
+                        <TouchableOpacity style={styles.skipBtn} activeOpacity={0.8} onPress={() => router.replace('/login')}>
                             <Text style={styles.skipBtnText}>SKIP</Text>
                         </TouchableOpacity>
                     </View>
