@@ -162,6 +162,10 @@ export default function RootLayout() {
             name="enter-mpin"
             options={{ headerShown: false, animation: 'fade' }}
           />
+          <Stack.Screen
+            name="waiting-approval"
+            options={{ headerShown: false, animation: 'fade' }}
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

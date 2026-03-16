@@ -41,7 +41,7 @@ export default function SetupMpinScreen() {
                 }, 120);
             } else {
                 if (digits === pin) {
-                    router.replace('/login');
+                    router.replace('/waiting-approval');
                 } else {
                     setError('PINs do not match. Please try again.');
                     setTimeout(() => setConfirmPin(''), 300);
