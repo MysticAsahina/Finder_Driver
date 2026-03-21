@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import React from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT = '#FF5F00';
 
@@ -15,6 +16,24 @@ const OPTIONS = [
 
 export default function UserScreen() {
     const router = useRouter();
+
+    const handleLogout = () => {
+        Alert.alert(
+            'Logout',
+            'Are you sure you want to logout?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Logout',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await SecureStore.deleteItemAsync('token');
+                        router.replace('/login');
+                    },
+                },
+            ]
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -71,7 +90,7 @@ export default function UserScreen() {
                 <View style={styles.spacer} />
 
                 {/* Logout */}
-                <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85}>
+                <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={handleLogout}>
                     <Text style={styles.logoutText}>LOGOUT</Text>
                 </TouchableOpacity>
             </ScrollView>
