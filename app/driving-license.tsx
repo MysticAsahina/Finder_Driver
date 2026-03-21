@@ -1,138 +1,222 @@
+import { Colors } from '@/constants/theme';
+import { setDriverRegLicense } from '@/store/driverRegistrationStore';
+import { getAndClearPendingImage } from '@/store/imageStore';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    ScrollView,
-    SafeAreaView,
-    Image,
+  Image,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { Colors } from '@/constants/theme';
-import { getAndClearPendingImage } from '@/store/imageStore';
 
 const ACCENT = Colors.light.tint;
 
+function formatDate(date: Date): string {
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+function validateLicenseNumber(value: string): string | null {
+  if (!value.trim())          return 'License number is required.';
+  if (value.trim().length > 20) return 'License number is too long.';
+  return null;
+}
+
 export default function DrivingLicenseScreen() {
-    const router = useRouter();
-    const [frontImage, setFrontImage] = useState<string | null>(null);
-    const [backImage, setBackImage] = useState<string | null>(null);
-    const [licenseNumber, setLicenseNumber] = useState('');
-    const [expirationDate, setExpirationDate] = useState('');
+  const router = useRouter();
+  const [frontImage,      setFrontImage]      = useState<string | null>(null);
+  const [backImage,       setBackImage]        = useState<string | null>(null);
+  const [licenseNumber,   setLicenseNumber]   = useState('');
+  const [expirationDate,  setExpirationDate]  = useState<Date | null>(null);
+  const [showPicker,      setShowPicker]      = useState(false);
+  const [error,           setError]           = useState<string | null>(null);
 
-    // Pick up image when returning from upload-guidelines
-    useFocusEffect(
-        React.useCallback(() => {
-            const pending = getAndClearPendingImage();
-            if (pending) {
-                if (pending.side === 'front') setFrontImage(pending.uri);
-                else setBackImage(pending.uri);
-            }
-        }, [])
-    );
+  useFocusEffect(
+    React.useCallback(() => {
+      const pending = getAndClearPendingImage();
+      if (pending) {
+        if (pending.side === 'front') setFrontImage(pending.uri);
+        else setBackImage(pending.uri);
+      }
+    }, [])
+  );
 
-    const openGuidelines = (side: 'front' | 'back') => {
-        router.push({ pathname: '/upload-guidelines', params: { type: 'license', side } });
-    };
+  const openGuidelines = (side: 'front' | 'back') => {
+    router.push({ pathname: '/upload-guidelines', params: { type: 'license', side } });
+  };
 
-    return (
-        <SafeAreaView style={styles.container}>
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-            >
-                <Text style={styles.pageTitle}>Driving License</Text>
-                <View style={styles.divider} />
-                <Text style={styles.subtitle}>Please provide your details for verification.</Text>
+  const handleNext = () => {
+    setError(null);
 
-                {/* Upload Front */}
-                <View style={styles.uploadRow}>
-                    <Text style={styles.uploadLabel}>
-                        Driving License{'\n'}(Front) <Text style={styles.required}>*</Text>
-                    </Text>
-                    <TouchableOpacity style={styles.uploadBox} onPress={() => openGuidelines('front')} activeOpacity={0.7}>
-                        {frontImage ? (
-                            <>
-                                <Image source={{ uri: frontImage }} style={styles.previewImage} resizeMode="cover" />
-                                <View style={styles.editBadge}>
-                                    <Text style={styles.editIcon}>✎</Text>
-                                </View>
-                            </>
-                        ) : (
-                            <><Text style={styles.plusIcon}>+</Text><Text style={styles.uploadText}>Upload Photo</Text></>
-                        )}
-                    </TouchableOpacity>
-                </View>
+    if (!frontImage) return setError('Please upload the front of your driving license.');
+    if (!backImage)  return setError('Please upload the back of your driving license.');
 
-                {/* Upload Back */}
-                <View style={styles.uploadRow}>
-                    <Text style={styles.uploadLabel}>
-                        Driving License{'\n'}(Back) <Text style={styles.required}>*</Text>
-                    </Text>
-                    <TouchableOpacity style={styles.uploadBox} onPress={() => openGuidelines('back')} activeOpacity={0.7}>
-                        {backImage ? (
-                            <>
-                                <Image source={{ uri: backImage }} style={styles.previewImage} resizeMode="cover" />
-                                <View style={styles.editBadge}>
-                                    <Text style={styles.editIcon}>✎</Text>
-                                </View>
-                            </>
-                        ) : (
-                            <><Text style={styles.plusIcon}>+</Text><Text style={styles.uploadText}>Upload Photo</Text></>
-                        )}
-                    </TouchableOpacity>
-                </View>
+    const licErr = validateLicenseNumber(licenseNumber);
+    if (licErr)  return setError(licErr);
 
-                {/* License Number */}
-                <Text style={styles.fieldLabel}>License number <Text style={styles.required}>*</Text></Text>
-                <TextInput style={styles.input} value={licenseNumber} onChangeText={setLicenseNumber} placeholder="" />
+    if (!expirationDate) return setError('Expiration date is required.');
+    if (expirationDate < new Date()) return setError('License expiration date must be in the future.');
 
-                {/* Expiration Date */}
-                <Text style={styles.fieldLabel}>Expiration date <Text style={styles.required}>*</Text></Text>
-                <TextInput style={styles.input} value={expirationDate} onChangeText={setExpirationDate} placeholder="" />
+    setDriverRegLicense({
+      licenseNumber:  licenseNumber.trim(),
+      licenseExpDate: expirationDate.toISOString(),
+    });
 
-                <TouchableOpacity style={styles.nextButton} onPress={() => router.push('/face-verification')} activeOpacity={0.85}>
-                    <Text style={styles.nextText}>NEXT</Text>
+    router.push('/face-verification');
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.pageTitle}>Driving License</Text>
+        <View style={styles.divider} />
+        <Text style={styles.subtitle}>Please provide your details for verification.</Text>
+
+        <View style={styles.uploadRow}>
+          <Text style={styles.uploadLabel}>Driving License{'\n'}(Front) <Text style={styles.required}>*</Text></Text>
+          <TouchableOpacity style={styles.uploadBox} onPress={() => openGuidelines('front')} activeOpacity={0.7}>
+            {frontImage ? (
+              <>
+                <Image source={{ uri: frontImage }} style={styles.previewImage} resizeMode="cover" />
+                <View style={styles.editBadge}><Text style={styles.editIcon}>✎</Text></View>
+              </>
+            ) : (
+              <><Text style={styles.plusIcon}>+</Text><Text style={styles.uploadText}>Upload Photo</Text></>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.uploadRow}>
+          <Text style={styles.uploadLabel}>Driving License{'\n'}(Back) <Text style={styles.required}>*</Text></Text>
+          <TouchableOpacity style={styles.uploadBox} onPress={() => openGuidelines('back')} activeOpacity={0.7}>
+            {backImage ? (
+              <>
+                <Image source={{ uri: backImage }} style={styles.previewImage} resizeMode="cover" />
+                <View style={styles.editBadge}><Text style={styles.editIcon}>✎</Text></View>
+              </>
+            ) : (
+              <><Text style={styles.plusIcon}>+</Text><Text style={styles.uploadText}>Upload Photo</Text></>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.fieldLabel}>License number <Text style={styles.required}>*</Text></Text>
+        <TextInput
+          style={styles.input}
+          value={licenseNumber}
+          onChangeText={(t) => { setError(null); setLicenseNumber(t); }}
+          placeholder=""
+          maxLength={20}
+        />
+
+        <Text style={styles.fieldLabel}>
+          Expiration date <Text style={styles.required}>*</Text>
+        </Text>
+        <TouchableOpacity
+          style={styles.dateButton}
+          onPress={() => { setError(null); setShowPicker(true); }}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.dateButtonText, !expirationDate && styles.dateButtonPlaceholder]}>
+            {expirationDate ? formatDate(expirationDate) : 'Select date'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Android: picker shows as dialog directly */}
+        {Platform.OS === 'android' && showPicker && (
+          <DateTimePicker
+            value={expirationDate ?? new Date()}
+            mode="date"
+            display="default"
+            minimumDate={new Date()}
+            onChange={(event: DateTimePickerEvent, selected?: Date) => {
+              setShowPicker(false);
+              if (event.type === 'set' && selected) {
+                setExpirationDate(selected);
+              }
+            }}
+          />
+        )}
+
+        {/* iOS: picker shown inside a modal */}
+        {Platform.OS === 'ios' && (
+          <Modal visible={showPicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <DateTimePicker
+                  value={expirationDate ?? new Date()}
+                  mode="date"
+                  display="spinner"
+                  minimumDate={new Date()}
+                  onChange={(_: DateTimePickerEvent, selected?: Date) => {
+                    if (selected) setExpirationDate(selected);
+                  }}
+                  style={styles.iOSPicker}
+                />
+                <TouchableOpacity
+                  style={styles.doneBtn}
+                  onPress={() => setShowPicker(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.doneBtnText}>Done</Text>
                 </TouchableOpacity>
-            </ScrollView>
-        </SafeAreaView>
-    );
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        <TouchableOpacity style={styles.nextButton} onPress={handleNext} activeOpacity={0.85}>
+          <Text style={styles.nextText}>NEXT</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    scrollContent: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
-    pageTitle: { fontSize: 28, fontWeight: '700', color: ACCENT, marginBottom: 6 },
-    divider: { height: 2.5, backgroundColor: ACCENT, marginBottom: 24, borderRadius: 2 },
-    subtitle: { fontSize: 18, fontWeight: '600', color: ACCENT, marginBottom: 28, lineHeight: 26 },
-    uploadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
-    uploadLabel: { fontSize: 15, fontWeight: '600', color: '#333', lineHeight: 22 },
-    required: { color: '#e53935', fontWeight: '700' },
-    uploadBox: {
-        width: 110, height: 100, borderWidth: 1.5, borderColor: '#ddd',
-        borderRadius: 12, borderStyle: 'dashed', alignItems: 'center',
-        justifyContent: 'center', backgroundColor: '#fafafa',
-        overflow: 'hidden',
-    },
-    previewImage: { width: '100%', height: '100%', borderRadius: 10 },
-    editBadge: {
-        position: 'absolute', bottom: 4, right: 4,
-        backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 10,
-        paddingHorizontal: 5, paddingVertical: 2,
-    },
-    editIcon: { color: '#fff', fontSize: 11 },
-    plusIcon: { fontSize: 28, color: '#555', fontWeight: '300' },
-    uploadText: { fontSize: 11, color: '#888', marginTop: 4 },
-    uploadDone: { fontSize: 28, color: ACCENT, fontWeight: '700' },
-    fieldLabel: { fontSize: 14, color: '#333', marginBottom: 8, fontWeight: '500' },
-    input: {
-        borderWidth: 0, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16,
-        fontSize: 15, color: '#222', backgroundColor: '#f0f0f0', marginBottom: 20,
-    },
-    nextButton: { backgroundColor: ACCENT, borderRadius: 50, paddingVertical: 18, alignItems: 'center', marginTop: 16 },
-    nextText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
+  container:      { flex: 1, backgroundColor: '#fff' },
+  scrollContent:  { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
+  pageTitle:      { fontSize: 28, fontWeight: '700', color: ACCENT, marginBottom: 6 },
+  divider:        { height: 2.5, backgroundColor: ACCENT, marginBottom: 24, borderRadius: 2 },
+  subtitle:       { fontSize: 18, fontWeight: '600', color: ACCENT, marginBottom: 28, lineHeight: 26 },
+  uploadRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
+  uploadLabel:    { fontSize: 15, fontWeight: '600', color: '#333', lineHeight: 22 },
+  required:       { color: '#e53935', fontWeight: '700' },
+  uploadBox:      { width: 110, height: 100, borderWidth: 1.5, borderColor: '#ddd', borderRadius: 12, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', overflow: 'hidden' },
+  previewImage:   { width: '100%', height: '100%', borderRadius: 10 },
+  editBadge:      { position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 },
+  editIcon:       { color: '#fff', fontSize: 11 },
+  plusIcon:       { fontSize: 28, color: '#555', fontWeight: '300' },
+  uploadText:     { fontSize: 11, color: '#888', marginTop: 4 },
+  fieldLabel:     { fontSize: 14, color: '#333', marginBottom: 8, fontWeight: '500' },
+  fieldHint:      { fontSize: 12, color: '#aaa', fontWeight: '400' },
+  input:          { borderWidth: 0, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, fontSize: 15, color: '#222', backgroundColor: '#f0f0f0', marginBottom: 20 },
+  errorText:      { fontSize: 13, color: '#e53935', marginBottom: 16 },
+  nextButton:          { backgroundColor: ACCENT, borderRadius: 50, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
+  nextText:            { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
+  dateButton:          { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#f0f0f0', marginBottom: 20 },
+  dateButtonText:      { fontSize: 15, color: '#222' },
+  dateButtonPlaceholder: { color: '#bbb' },
+  modalOverlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalCard:           { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32, paddingTop: 12, paddingHorizontal: 24 },
+  iOSPicker:           { width: '100%' },
+  doneBtn:             { backgroundColor: ACCENT, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  doneBtnText:         { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
