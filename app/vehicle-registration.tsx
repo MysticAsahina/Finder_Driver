@@ -5,13 +5,13 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Image,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT = Colors.light.tint;
 

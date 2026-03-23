@@ -13,7 +13,6 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -21,6 +20,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT       = Colors.light.tint;
 const API_URL      = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';

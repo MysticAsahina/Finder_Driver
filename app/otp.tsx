@@ -14,13 +14,13 @@ import React, { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT     = Colors.light.tint;
 const API_URL    = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
