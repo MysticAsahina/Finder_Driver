@@ -19,6 +19,17 @@ import {
 } from 'react-native';
 
 const ACCENT = Colors.light.tint;
+const LICENSE_NUMBER_REGEX = /^[A-Z]\d{2}-\d{2}-\d{6}$/;
+const OCR_DIGIT_CORRECTIONS: Record<string, string> = {
+  O: '0',
+  Q: '0',
+  D: '0',
+  I: '1',
+  L: '1',
+  Z: '2',
+  S: '5',
+  B: '8',
+};
 
 function formatDate(date: Date): string {
   const mm = String(date.getMonth() + 1).padStart(2, '0');
@@ -27,27 +38,96 @@ function formatDate(date: Date): string {
   return `${mm}/${dd}/${yyyy}`;
 }
 
+function normalizeLicenseNumber(value: string): string {
+  const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!cleaned) return '';
+
+  if (cleaned.length !== 11) {
+    return value.toUpperCase().trim();
+  }
+
+  const firstCharacter = cleaned.charAt(0);
+  const digits = cleaned
+    .slice(1)
+    .split('')
+    .map((char) => OCR_DIGIT_CORRECTIONS[char] ?? char)
+    .join('');
+
+  if (!/^[A-Z]$/.test(firstCharacter) || !/^\d{10}$/.test(digits)) {
+    return value.toUpperCase().trim();
+  }
+
+  return `${firstCharacter}${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+}
+
 function validateLicenseNumber(value: string): string | null {
-  if (!value.trim())          return 'License number is required.';
-  if (value.trim().length > 20) return 'License number is too long.';
+  if (!value.trim()) return 'License number is required.';
+  if (!LICENSE_NUMBER_REGEX.test(value.trim())) {
+    return 'License number must match A00-00-000000.';
+  }
   return null;
+}
+
+function parseYmdDate(value?: string): Date | null {
+  if (!value) return null;
+
+  const match = value.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!match) return null;
+
+  const [, year, month, day] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+
+  if (
+    parsed.getFullYear() !== Number(year) ||
+    parsed.getMonth() !== Number(month) - 1 ||
+    parsed.getDate() !== Number(day)
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function getStartOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function toUtcDateISOString(date: Date): string {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())).toISOString();
 }
 
 export default function DrivingLicenseScreen() {
   const router = useRouter();
-  const [frontImage,      setFrontImage]      = useState<string | null>(null);
-  const [backImage,       setBackImage]        = useState<string | null>(null);
-  const [licenseNumber,   setLicenseNumber]   = useState('');
-  const [expirationDate,  setExpirationDate]  = useState<Date | null>(null);
-  const [showPicker,      setShowPicker]      = useState(false);
-  const [error,           setError]           = useState<string | null>(null);
+  const [frontImage, setFrontImage] = useState<string | null>(null);
+  const [backImage, setBackImage] = useState<string | null>(null);
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [expirationDate, setExpirationDate] = useState<Date | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
       const pending = getAndClearPendingImage();
       if (pending) {
-        if (pending.side === 'front') setFrontImage(pending.uri);
-        else setBackImage(pending.uri);
+        if (pending.side === 'front') {
+          setFrontImage(pending.uri);
+
+          if (pending.ocrData?.licenseNumber) {
+            setLicenseNumber(pending.ocrData.licenseNumber);
+          }
+
+          if (pending.ocrData?.expirationDateYmd) {
+            const parsedDate = parseYmdDate(pending.ocrData.expirationDateYmd);
+            if (parsedDate) {
+              setExpirationDate(parsedDate);
+            }
+          }
+        } else {
+          setBackImage(pending.uri);
+        }
+
+        setError(null);
       }
     }, [])
   );
@@ -60,17 +140,24 @@ export default function DrivingLicenseScreen() {
     setError(null);
 
     if (!frontImage) return setError('Please upload the front of your driving license.');
-    if (!backImage)  return setError('Please upload the back of your driving license.');
+    if (!backImage) return setError('Please upload the back of your driving license.');
 
-    const licErr = validateLicenseNumber(licenseNumber);
-    if (licErr)  return setError(licErr);
+    const normalizedLicenseNumber = normalizeLicenseNumber(licenseNumber);
+    const licErr = validateLicenseNumber(normalizedLicenseNumber);
+    if (licErr) return setError(licErr);
+
+    if (normalizedLicenseNumber !== licenseNumber) {
+      setLicenseNumber(normalizedLicenseNumber);
+    }
 
     if (!expirationDate) return setError('Expiration date is required.');
-    if (expirationDate < new Date()) return setError('License expiration date must be in the future.');
+    if (expirationDate < getStartOfToday()) {
+      return setError('License expiration date must be today or in the future.');
+    }
 
     setDriverRegLicense({
-      licenseNumber:  licenseNumber.trim(),
-      licenseExpDate: expirationDate.toISOString(),
+      licenseNumber: normalizedLicenseNumber,
+      licenseExpDate: toUtcDateISOString(expirationDate),
     });
 
     router.push('/face-verification');
@@ -119,9 +206,11 @@ export default function DrivingLicenseScreen() {
         <TextInput
           style={styles.input}
           value={licenseNumber}
-          onChangeText={(t) => { setError(null); setLicenseNumber(t); }}
-          placeholder=""
+          onChangeText={(text) => { setError(null); setLicenseNumber(text.toUpperCase()); }}
+          placeholder="A00-00-000000"
           maxLength={20}
+          autoCapitalize="characters"
+          autoCorrect={false}
         />
 
         <Text style={styles.fieldLabel}>
@@ -143,7 +232,7 @@ export default function DrivingLicenseScreen() {
             value={expirationDate ?? new Date()}
             mode="date"
             display="default"
-            minimumDate={new Date()}
+            minimumDate={getStartOfToday()}
             onChange={(event: DateTimePickerEvent, selected?: Date) => {
               setShowPicker(false);
               if (event.type === 'set' && selected) {
@@ -162,7 +251,7 @@ export default function DrivingLicenseScreen() {
                   value={expirationDate ?? new Date()}
                   mode="date"
                   display="spinner"
-                  minimumDate={new Date()}
+                  minimumDate={getStartOfToday()}
                   onChange={(_: DateTimePickerEvent, selected?: Date) => {
                     if (selected) setExpirationDate(selected);
                   }}
@@ -191,32 +280,32 @@ export default function DrivingLicenseScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: '#fff' },
-  scrollContent:  { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
-  pageTitle:      { fontSize: 28, fontWeight: '700', color: ACCENT, marginBottom: 6 },
-  divider:        { height: 2.5, backgroundColor: ACCENT, marginBottom: 24, borderRadius: 2 },
-  subtitle:       { fontSize: 18, fontWeight: '600', color: ACCENT, marginBottom: 28, lineHeight: 26 },
-  uploadRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
-  uploadLabel:    { fontSize: 15, fontWeight: '600', color: '#333', lineHeight: 22 },
-  required:       { color: '#e53935', fontWeight: '700' },
-  uploadBox:      { width: 110, height: 100, borderWidth: 1.5, borderColor: '#ddd', borderRadius: 12, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', overflow: 'hidden' },
-  previewImage:   { width: '100%', height: '100%', borderRadius: 10 },
-  editBadge:      { position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 },
-  editIcon:       { color: '#fff', fontSize: 11 },
-  plusIcon:       { fontSize: 28, color: '#555', fontWeight: '300' },
-  uploadText:     { fontSize: 11, color: '#888', marginTop: 4 },
-  fieldLabel:     { fontSize: 14, color: '#333', marginBottom: 8, fontWeight: '500' },
-  fieldHint:      { fontSize: 12, color: '#aaa', fontWeight: '400' },
-  input:          { borderWidth: 0, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, fontSize: 15, color: '#222', backgroundColor: '#f0f0f0', marginBottom: 20 },
-  errorText:      { fontSize: 13, color: '#e53935', marginBottom: 16 },
-  nextButton:          { backgroundColor: ACCENT, borderRadius: 50, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
-  nextText:            { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
-  dateButton:          { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#f0f0f0', marginBottom: 20 },
-  dateButtonText:      { fontSize: 15, color: '#222' },
+  container: { flex: 1, backgroundColor: '#fff' },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
+  pageTitle: { fontSize: 28, fontWeight: '700', color: ACCENT, marginBottom: 6 },
+  divider: { height: 2.5, backgroundColor: ACCENT, marginBottom: 24, borderRadius: 2 },
+  subtitle: { fontSize: 18, fontWeight: '600', color: ACCENT, marginBottom: 28, lineHeight: 26 },
+  uploadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
+  uploadLabel: { fontSize: 15, fontWeight: '600', color: '#333', lineHeight: 22 },
+  required: { color: '#e53935', fontWeight: '700' },
+  uploadBox: { width: 110, height: 100, borderWidth: 1.5, borderColor: '#ddd', borderRadius: 12, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', overflow: 'hidden' },
+  previewImage: { width: '100%', height: '100%', borderRadius: 10 },
+  editBadge: { position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 2 },
+  editIcon: { color: '#fff', fontSize: 11 },
+  plusIcon: { fontSize: 28, color: '#555', fontWeight: '300' },
+  uploadText: { fontSize: 11, color: '#888', marginTop: 4 },
+  fieldLabel: { fontSize: 14, color: '#333', marginBottom: 8, fontWeight: '500' },
+  fieldHint: { fontSize: 12, color: '#aaa', fontWeight: '400' },
+  input: { borderWidth: 0, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, fontSize: 15, color: '#222', backgroundColor: '#f0f0f0', marginBottom: 20 },
+  errorText: { fontSize: 13, color: '#e53935', marginBottom: 16 },
+  nextButton: { backgroundColor: ACCENT, borderRadius: 50, paddingVertical: 18, alignItems: 'center', marginTop: 8 },
+  nextText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
+  dateButton: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#f0f0f0', marginBottom: 20 },
+  dateButtonText: { fontSize: 15, color: '#222' },
   dateButtonPlaceholder: { color: '#bbb' },
-  modalOverlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard:           { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32, paddingTop: 12, paddingHorizontal: 24 },
-  iOSPicker:           { width: '100%' },
-  doneBtn:             { backgroundColor: ACCENT, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
-  doneBtnText:         { color: '#fff', fontSize: 15, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32, paddingTop: 12, paddingHorizontal: 24 },
+  iOSPicker: { width: '100%' },
+  doneBtn: { backgroundColor: ACCENT, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  doneBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

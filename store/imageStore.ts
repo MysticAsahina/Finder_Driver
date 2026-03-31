@@ -1,12 +1,27 @@
-// Simple module-level store to pass picked image back from upload-guidelines page
-let pendingImage: { side: string; uri: string } | null = null;
+export interface PendingImageOcrData {
+  licenseNumber?: string;
+  expirationDateYmd?: string;
+}
 
-export const setPendingImage = (side: string, uri: string) => {
-    pendingImage = { side, uri };
+export interface PendingImagePayload {
+  side: string;
+  uri: string;
+  ocrData?: PendingImageOcrData;
+}
+
+// Simple module-level store to pass picked image data back from upload-guidelines page.
+let pendingImage: PendingImagePayload | null = null;
+
+export const setPendingImage = (
+  side: string,
+  uri: string,
+  ocrData?: PendingImageOcrData,
+) => {
+  pendingImage = { side, uri, ocrData };
 };
 
-export const getAndClearPendingImage = () => {
-    const result = pendingImage;
-    pendingImage = null;
-    return result;
+export const getAndClearPendingImage = (): PendingImagePayload | null => {
+  const result = pendingImage;
+  pendingImage = null;
+  return result;
 };
