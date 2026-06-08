@@ -20,7 +20,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.monochroma.driver"
+      "package": "com.monochroma.driver",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCCoKh4svWYYcpfvW-vEKyaKOH5h7IWKbY"
+        }
+      }
     },
     "web": {
       "output": "static",
