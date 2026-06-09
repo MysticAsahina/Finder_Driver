@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import React from 'react';
+import React, { useContext } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AuthContext } from '@/context/AuthContext';
 
 const ACCENT = '#FF5F00';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const OPTIONS = [
     { icon: 'headset-outline' as const, label: 'Help Centre' },
@@ -16,6 +18,11 @@ const OPTIONS = [
 
 export default function UserScreen() {
     const router = useRouter();
+    const { setAccessToken, setUser, user } = useContext(AuthContext);
+
+    const displayName = user
+        ? `${user.firstName} ${user.lastName}`
+        : 'Driver';
 
     const handleLogout = () => {
         Alert.alert(
@@ -27,7 +34,17 @@ export default function UserScreen() {
                     text: 'Logout',
                     style: 'destructive',
                     onPress: async () => {
-                        await SecureStore.deleteItemAsync('token');
+                        const refreshToken = await SecureStore.getItemAsync('refreshToken');
+                        if (refreshToken) {
+                            await fetch(`${API_URL}/auth/logout`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ refreshToken }),
+                            }).catch(() => {}); // non-fatal
+                        }
+                        await SecureStore.deleteItemAsync('refreshToken');
+                        setAccessToken(null);
+                        setUser(null);
                         router.replace('/login');
                     },
                 },
@@ -49,7 +66,7 @@ export default function UserScreen() {
                     <View style={styles.avatarCircle}>
                         <Ionicons name="person" size={28} color="#999" />
                     </View>
-                    <Text style={styles.profileName}>Marcelino Zafra</Text>
+                    <Text style={styles.profileName}>{displayName}</Text>
                     <Ionicons name="chevron-forward" size={22} color="#999" />
                 </TouchableOpacity>
 

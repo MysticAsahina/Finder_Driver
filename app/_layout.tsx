@@ -5,11 +5,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AuthProvider } from '@/context/AuthContext';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <AuthProvider>
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack initialRouteName="index">
@@ -75,13 +77,6 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="edit-profile"
-            options={{
-              headerShown: false,
-              animation: 'slide_from_right',
-            }}
-          />
-          <Stack.Screen
-            name="edit-field"
             options={{
               headerShown: false,
               animation: 'slide_from_right',
@@ -170,6 +165,7 @@ export default function RootLayout() {
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>
+    </AuthProvider>
   );
 }
 

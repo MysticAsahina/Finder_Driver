@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/theme';
+import { AuthContext } from '@/context/AuthContext';
 import {
   clearAuth,
   getPendingToken,
@@ -10,7 +11,7 @@ import {
 } from '@/store/driverRegistrationStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import React, { useRef, useState } from 'react';
+import React, { useContext, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -28,6 +29,7 @@ const OTP_LENGTH = 6;
 
 export default function OtpScreen() {
   const router  = useRouter();
+  const { setAccessToken, setUser } = useContext(AuthContext);
   const { flow } = useLocalSearchParams<{ flow?: string }>();
   const isLogin = flow === 'login';
 
@@ -83,8 +85,10 @@ export default function OtpScreen() {
           return;
         }
 
-        // Store real token securely and clear pending
-        await SecureStore.setItemAsync('token', data.token);
+        // Store tokens and update auth context
+        setAccessToken(data.accessToken);
+        setUser(data.user);
+        await SecureStore.setItemAsync('refreshToken', data.refreshToken);
         clearAuth();
         router.replace('/(tabs)');
 
