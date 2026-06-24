@@ -1,87 +1,149 @@
-import React, { useState, useRef } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/theme';
+import { AuthContext } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import {
+    FlatList, KeyboardAvoidingView, Platform,
+    StyleSheet,
+    Text, TextInput, TouchableOpacity,
+    View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { io, Socket } from 'socket.io-client';
 
 const ACCENT = Colors.light.tint;
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-interface Message {
-    id: string;
-    text: string;
-    isUser: boolean;
-    time: string;
-}
-
-const AUTO_REPLIES = [
-    "Thank you for reaching out! We're looking into your concern.",
-    'Could you provide more details so we can assist you better?',
-    'We understand your concern. Our team is working on it.',
-    'Your issue has been noted. A support agent will follow up shortly.',
-    "Thank you for your patience. We'll get back to you soon!",
-    'Is there anything else we can help you with?',
-    "We appreciate your feedback! It helps us improve FINDER.",
-    "Rest assured, we're here to help you with any issues.",
-];
-
-function getTime() {
-    const now = new Date();
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-}
+type Message = {
+    _id: string;
+    ticketId: string;
+    senderId: string;
+    senderRole: 'passenger' | 'driver' | 'admin';
+    body: string;
+    createdAt: string;
+};
 
 export default function SupportChatScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const scrollRef = useRef<ScrollView>(null);
-    const [inputText, setInputText] = useState('');
-    const [replyIndex, setReplyIndex] = useState(0);
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            text: 'Hi there! Welcome to Finder Customer Support. How can we help you today?',
-            isUser: false,
-            time: getTime(),
-        },
-    ]);
+    const { accessToken } = useContext(AuthContext);
+    const [msgs, setMsgs] = useState<Message[]>([]);
+    const [input, setInput] = useState('');
+    const [sending, setSending] = useState(false);
+    const [ticketId, setTicketId] = useState<string | null>(null);
+    const socketRef = useRef<Socket | null>(null);
+    const listRef = useRef<FlatList>(null);
 
-    const sendMessage = () => {
-        if (!inputText.trim()) return;
+    useEffect(() => {
+        if (!accessToken) return;
 
-        const userMsg: Message = {
-            id: Date.now().toString(),
-            text: inputText.trim(),
-            isUser: true,
-            time: getTime(),
+        let socket: Socket;
+
+        async function initialize() {
+            let activeTicketId = ticketId;
+
+            if (!activeTicketId) {
+                const ticketsRes = await fetch(`${API_URL}/support/tickets`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                });
+                const ticketsData = await ticketsRes.json();
+                const openTicket = ticketsData.tickets?.find(
+                    (t: any) => t.status === 'open'
+                );
+
+                if (openTicket) {
+                    activeTicketId = openTicket._id;
+                } else {
+                    const createRes = await fetch(`${API_URL}/support/tickets`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`,
+                        },
+                        body: JSON.stringify({ subject: 'General Support' }),
+                    });
+                    const createData = await createRes.json();
+                    activeTicketId = createData.ticket._id;
+                }
+                setTicketId(activeTicketId);
+            }
+
+            const msgsRes = await fetch(
+                `${API_URL}/support/tickets/${activeTicketId}/messages`,
+                { headers: { 'Authorization': `Bearer ${accessToken}` } }
+            );
+            const msgsData = await msgsRes.json();
+            setMsgs(msgsData.messages || []);
+
+            socket = io(API_URL, {
+                auth: { token: accessToken },
+                transports: ['websocket'],
+            });
+
+            socket.on('connect', () => {
+                socket.emit('join_ticket', { ticketId: activeTicketId });
+            });
+
+            socket.on('receive_message', (newMsg: Message) => {
+                setMsgs(prev => {
+                    if (prev.some(m => m._id === newMsg._id)) return prev;
+                    return [...prev, newMsg];
+                });
+            });
+
+            socketRef.current = socket;
+        }
+
+        initialize();
+
+        return () => {
+            if (socket) socket.disconnect();
         };
+    }, [accessToken]);
 
-        setMessages((prev) => [...prev, userMsg]);
-        setInputText('');
+    useEffect(() => {
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    }, [msgs]);
 
-        const replyText = AUTO_REPLIES[replyIndex % AUTO_REPLIES.length];
-        setReplyIndex((prev) => prev + 1);
+    const send = async () => {
+        const text = input.trim();
+        if (!text || !ticketId || sending) return;
 
-        setTimeout(() => {
-            const botMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                text: replyText,
-                isUser: false,
-                time: getTime(),
-            };
-            setMessages((prev) => [...prev, botMsg]);
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-        }, 1200);
+        setSending(true);
+        setInput('');
 
-        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+        const optimisticMsg: Message = {
+            _id: Date.now().toString(),
+            ticketId,
+            senderId: '',
+            senderRole: 'driver',    // ← This is the key difference from passenger
+            body: text,
+            createdAt: new Date().toISOString(),
+        };
+        setMsgs(prev => [...prev, optimisticMsg]);
+
+        try {
+            const res = await fetch(
+                `${API_URL}/support/tickets/${ticketId}/messages`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify({ body: text }),
+                }
+            );
+            const data = await res.json();
+            setMsgs(prev =>
+                prev.map(m => m._id === optimisticMsg._id ? data.message : m)
+            );
+        } catch (err) {
+            console.error('Failed to send message:', err);
+        } finally {
+            setSending(false);
+        }
     };
 
     return (
@@ -97,69 +159,45 @@ export default function SupportChatScreen() {
                 <View style={{ width: 38 }} />
             </View>
 
-            {/* KeyboardAvoidingView wraps ONLY the chat body + input */}
             <KeyboardAvoidingView
                 style={styles.flex}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={0}
             >
-                <ScrollView
-                    ref={scrollRef}
-                    style={styles.chatArea}
-                    contentContainerStyle={[
-                        styles.chatContent,
-                        { paddingBottom: insets.bottom + 8 },
-                    ]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    onContentSizeChange={() =>
-                        scrollRef.current?.scrollToEnd({ animated: true })
-                    }
-                >
-                    {/* Agent card */}
-                    <View style={styles.agentCard}>
-                        <View style={styles.agentIcon}>
-                            <Ionicons name="headset" size={26} color={ACCENT} />
-                        </View>
-                        <View>
-                            <Text style={styles.agentName}>Finder Customer Support</Text>
-                            <View style={styles.statusRow}>
-                                <View style={styles.onlineDot} />
-                                <Text style={styles.statusText}>Online now</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Messages */}
-                    {messages.map((msg) => (
-                        <View
-                            key={msg.id}
-                            style={[
-                                styles.messageBubbleWrap,
-                                msg.isUser && styles.userBubbleWrap,
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.messageBubble,
-                                    msg.isUser ? styles.userBubble : styles.botBubble,
-                                ]}
-                            >
-                                <Text
-                                    style={[
-                                        styles.messageText,
-                                        msg.isUser && styles.userMessageText,
-                                    ]}
-                                >
-                                    {msg.text}
+                <FlatList
+                    ref={listRef}
+                    data={msgs}
+                    keyExtractor={m => m._id}
+                    renderItem={({ item }) => (
+                        <View style={[styles.messageBubbleWrap, item.senderRole === 'driver' && styles.userBubbleWrap]}>
+                            <View style={[styles.messageBubble, item.senderRole === 'driver' ? styles.userBubble : styles.botBubble]}>
+                                <Text style={[styles.messageText, item.senderRole === 'driver' && styles.userMessageText]}>
+                                    {item.body}
                                 </Text>
                             </View>
-                            <Text style={[styles.messageTime, msg.isUser && styles.userTime]}>
-                                {msg.time}
+                            <Text style={[styles.messageTime, item.senderRole === 'driver' && styles.userTime]}>
+                                {new Date(item.createdAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: false })}
                             </Text>
                         </View>
-                    ))}
-                </ScrollView>
+                    )}
+                    contentContainerStyle={[styles.chatContent, { paddingBottom: insets.bottom + 8 }]}
+                    onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+                    ListHeaderComponent={
+                        <View style={styles.agentCard}>
+                            <View style={styles.agentIcon}>
+                                <Ionicons name="headset" size={26} color={ACCENT} />
+                            </View>
+                            <View>
+                                <Text style={styles.agentName}>Finder Customer Support</Text>
+                                <View style={styles.statusRow}>
+                                    <View style={styles.onlineDot} />
+                                    <Text style={styles.statusText}>Online now</Text>
+                                </View>
+                            </View>
+                        </View>
+                    }
+                    ListFooterComponent={<View style={{ paddingBottom: 10 }} />}
+                />
 
                 {/* Input bar */}
                 <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
@@ -168,14 +206,14 @@ export default function SupportChatScreen() {
                     </TouchableOpacity>
                     <TextInput
                         style={styles.textInput}
-                        value={inputText}
-                        onChangeText={setInputText}
+                        value={input}
+                        onChangeText={setInput}
                         placeholder="Write a message..."
                         placeholderTextColor="#bbb"
-                        onSubmitEditing={sendMessage}
+                        onSubmitEditing={send}
                         returnKeyType="send"
                     />
-                    <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.sendBtn} onPress={send} activeOpacity={0.7}>
                         <Ionicons name="send" size={20} color={ACCENT} />
                     </TouchableOpacity>
                 </View>
@@ -211,9 +249,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         color: ACCENT,
-    },
-    chatArea: {
-        flex: 1,
     },
     chatContent: {
         paddingHorizontal: 16,

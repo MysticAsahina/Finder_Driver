@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setAccessToken(data.accessToken);
       setUser(data.user);
+      registerPushToken(data.accessToken);
 
       // Store the rotated refresh token
       if (data.refreshToken) {
@@ -70,6 +71,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function registerPushToken(token: string) {
+    try {
+      const Notifications = require('expo-notifications');
+
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') return;
+
+      const pushTokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: require('expo-constants').default.expoConfig?.extra?.eas?.projectId,
+      });
+
+      await fetch(`${API_URL}/support/push-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pushToken: pushTokenData.data }),
+      });
+    } catch (err) {
+      console.error('Failed to register push token:', err);
     }
   }
 
