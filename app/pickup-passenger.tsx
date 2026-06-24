@@ -4,11 +4,12 @@ import {
     Text,
     TouchableOpacity,
     StyleSheet,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -61,7 +62,7 @@ export default function PickupPassengerScreen() {
         params.pickupFull ||
         'SM City Cabanatuan\nBarangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
 
-    const mapRef = useRef<MapView>(null);
+    const mapRef = useRef<any>(null);
     const [arrived, setArrived] = useState(false);
 
     // Animated sheet height
@@ -123,16 +124,14 @@ export default function PickupPassengerScreen() {
 
     return (
         <GestureHandlerRootView style={styles.container}>
-            {/* MAP — full screen */}
             <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFillObject}
-                provider={PROVIDER_DEFAULT}
                 initialRegion={INITIAL_REGION}
                 showsUserLocation
                 showsMyLocationButton={false}
             >
-                <Marker coordinate={PICKUP_COORDS} pinColor={ACCENT} />
+                <Marker coordinate={PICKUP_COORDS} title="Pickup Location" />
             </MapView>
 
             {/* BOTTOM SHEET */}
@@ -256,6 +255,18 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#eee',
+    },
+    mapPlaceholder: {
+        backgroundColor: '#1a1a2e',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    mapPlaceholderText: {
+        color: '#555',
+        fontSize: 13,
+        textAlign: 'center',
+        lineHeight: 20,
     },
     bottomSheet: {
         position: 'absolute',

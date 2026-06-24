@@ -1,245 +1,356 @@
-import React from 'react';
+import { useRouter } from 'expo-router';
+import { useContext, useState } from 'react';
 import {
-    View,
-    Text,
-    TouchableOpacity,
+    Alert, ScrollView,
     StyleSheet,
-    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { G, Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { AuthContext } from '../context/AuthContext';
 
-const ACCENT = '#FF5F00';
+// ??? Icons ????????????????????????????????????????????????????????????????????
+const BackArrow = ({ onPress }: { onPress: () => void }) => (
+    <TouchableOpacity onPress={onPress} style={s.backBtn} activeOpacity={0.7}>
+        <Svg width={22} height={18} viewBox="0 0 22 18">
+            <G fill="none" stroke="#FF5F00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M20 9H2" /><Path d="M9 2L2 9l7 7" />
+            </G>
+        </Svg>
+    </TouchableOpacity>
+);
 
-const PROFILE_FIELDS = [
-    {
-        key: 'name',
-        label: 'Name',
-        value: 'Marcelino Zafra',
-    },
-    {
-        key: 'mobile',
-        label: 'Mobile number',
-        value: '+63 9295624051',
-        verified: true,
-    },
-    {
-        key: 'email',
-        label: 'Email',
-        value: 'Add an e-mail address',
-        placeholder: true,
-    },
-    {
-        key: 'mpin',
-        label: 'MPIN',
-        value: 'Create MPIN',
-        placeholder: true,
-    },
-];
+const PencilIcon = () => (
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+        <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+            stroke="#FF5F00" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+            stroke="#FF5F00" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+);
 
-export default function EditProfileScreen() {
-    const router = useRouter();
+// ??? Editable field card ???????????????????????????????????????????????????????
+function FieldCard({
+    label, value, placeholder, onSave, keyboardType = 'default', extra,
+}: {
+    label: string;
+    value: string;
+    placeholder?: string;
+    onSave: (v: string) => void;
+    keyboardType?: 'default' | 'email-address' | 'phone-pad';
+    extra?: React.ReactNode;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(value);
 
-    // Get initials from name
-    const name = 'Marcelino Zafra';
-    const initials = name
-        .split(' ')
-        .map((w) => w[0])
-        .join('')
-        .toUpperCase();
+    const save = () => {
+        onSave(draft.trim() || value);
+        setEditing(false);
+    };
 
     return (
-        <SafeAreaView style={styles.container}>
-            {/* Top green section */}
-            <View style={styles.topSection}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-                        <Ionicons name="arrow-back" size={24} color={ACCENT} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>User Profile</Text>
-                    <View style={{ width: 24 }} />
-                </View>
+        <View style={s.fieldCard}>
+            <View style={s.fieldLeft}>
+                <Text style={s.fieldLabel}>{label}</Text>
+                {editing ? (
+                    <TextInput
+                        style={s.fieldInput}
+                        value={draft}
+                        onChangeText={setDraft}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={save}
+                        onBlur={save}
+                        keyboardType={keyboardType}
+                    />
+                ) : (
+                    <Text style={[s.fieldValue, !value && s.fieldPlaceholder]}>
+                        {value || placeholder}
+                    </Text>
+                )}
+                {extra}
+            </View>
+            <TouchableOpacity onPress={() => { setDraft(value); setEditing(e => !e); }} activeOpacity={0.7}>
+                <PencilIcon />
+            </TouchableOpacity>
+        </View>
+    );
+}
 
-                {/* Avatar */}
-                <View style={styles.avatarContainer}>
-                    <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>{initials}</Text>
-                    </View>
-                </View>
+// ??? Screen ???????????????????????????????????????????????????????????????????
+export default function EditProfileScreen() {
+    const router = useRouter();
+    const { user, setUser } = useContext(AuthContext);
+
+    const [firstName, setFirstName] = useState(user?.firstName || 'N/A');
+    const [lastName, setLastName] = useState(user?.lastName || 'N/A');
+    const [mobileNumber, setMobileNumber] = useState(user?.mobileNumber || 'N/A');
+    const [email, setEmail] = useState(user?.email || 'N/A');
+
+    const hasChanges =
+        firstName !== (user?.firstName || 'N/A') ||
+        lastName !== (user?.lastName || 'N/A') ||
+        mobileNumber !== (user?.mobileNumber || 'N/A') ||
+        email !== (user?.email || 'N/A');
+
+    const confirmSave = () => {
+        Alert.alert(
+            'Save Changes',
+            'Are you sure you want to save the changes to your profile?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Save',
+                    onPress: () => {
+                        setUser({
+                            ...user,
+                            firstName,
+                            lastName,
+                            mobileNumber,
+                            email,
+                        });
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleCancel = () => {
+        setFirstName(user?.firstName || 'N/A');
+        setLastName(user?.lastName || 'N/A');
+        setMobileNumber(user?.mobileNumber || 'N/A');
+        setEmail(user?.email || 'N/A');
+    };
+
+    const profileName = `${firstName !== 'N/A' ? firstName : ''} ${lastName !== 'N/A' ? lastName : ''}`.trim();
+    const initials = profileName
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w: string) => w[0])
+        .join('')
+        .toUpperCase() || '?';
+
+    return (
+        <SafeAreaView style={s.safe}>
+            {/* Header */}
+            <View style={s.header}>
+                <BackArrow onPress={() => router.back()} />
+                <Text style={s.headerTitle}>User Profile</Text>
+                <View style={{ width: 38 }} />
             </View>
 
-            {/* White card */}
-            <ScrollView
-                style={styles.formCard}
-                contentContainerStyle={styles.formContent}
-                showsVerticalScrollIndicator={false}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
             >
-                {/* Personal details label */}
-                <Text style={styles.sectionLabel}>Personal details</Text>
-                <View style={styles.sectionDivider} />
-
-                {/* Fields */}
-                {PROFILE_FIELDS.map((field, index) => (
-                    <TouchableOpacity
-                        key={index}
-                        style={styles.fieldCard}
-                        activeOpacity={0.7}
-                        onPress={() => {
-                            if (field.key === 'mpin') {
-                                router.push('/setup-mpin');
-                            } else {
-                                router.push({ pathname: '/edit-field', params: { field: field.key } });
-                            }
-                        }}
-                    >
-                        <View style={styles.fieldInfo}>
-                            <Text style={styles.fieldLabel}>{field.label}</Text>
-                            <Text
-                                style={[
-                                    styles.fieldValue,
-                                    field.placeholder && styles.fieldPlaceholder,
-                                ]}
-                            >
-                                {field.value}
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    {/* Avatar banner */}
+                    <View style={s.avatarBanner}>
+                        <View style={s.avatarCircle}>
+                            <Text style={s.avatarTxt}>
+                                {initials}
                             </Text>
-                            {field.verified && (
-                                <View style={styles.verifiedBadge}>
-                                    <Text style={styles.verifiedText}>Verified</Text>
-                                </View>
-                            )}
                         </View>
-                        <Ionicons name="pencil" size={18} color={ACCENT} />
-                    </TouchableOpacity>
-                ))}
+                    </View>
 
-                {/* Delete account */}
-                <TouchableOpacity style={styles.deleteBtn} activeOpacity={0.7}>
-                    <Text style={styles.deleteText}>Delete my account</Text>
-                </TouchableOpacity>
-            </ScrollView>
+                    {/* Personal details */}
+                    <View style={s.section}>
+                        <Text style={s.sectionLabel}>Personal details</Text>
+                        <View style={s.divider} />
+
+                        <FieldCard
+                            label="First Name"
+                            value={firstName}
+                            onSave={setFirstName}
+                        />
+
+                        <FieldCard
+                            label="Last Name"
+                            value={lastName}
+                            onSave={setLastName}
+                        />
+
+                        <FieldCard
+                            label="Mobile Number"
+                            value={mobileNumber}
+                            onSave={setMobileNumber}
+                            keyboardType="phone-pad"
+                            extra={
+                                <View style={s.verifiedBadge}>
+                                    <Text style={s.verifiedTxt}>Verified</Text>
+                                </View>
+                            }
+                        />
+
+                        <FieldCard
+                            label="Email"
+                            value={email}
+                            placeholder="Add an e-mail address"
+                            onSave={setEmail}
+                            keyboardType="email-address"
+                        />
+
+                        {/* MPIN card as a row that routes to /setup-mpin */}
+                        <TouchableOpacity
+                            style={s.fieldCard}
+                            activeOpacity={0.7}
+                            onPress={() => router.push('/setup-mpin')}
+                        >
+                            <View style={s.fieldLeft}>
+                                <Text style={s.fieldLabel}>MPIN</Text>
+                                <Text style={[s.fieldValue, s.fieldPlaceholder]}>
+                                    Create MPIN
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color="#ccc" style={{ marginRight: 4 }} />
+                        </TouchableOpacity>
+
+                        {hasChanges && (
+                            <View style={s.btnContainer}>
+                                <TouchableOpacity
+                                    style={s.saveBtn}
+                                    activeOpacity={0.8}
+                                    onPress={confirmSave}
+                                >
+                                    <Text style={s.saveBtnTxt}>Save Changes</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={s.cancelBtn}
+                                    activeOpacity={0.8}
+                                    onPress={handleCancel}
+                                >
+                                    <Text style={s.cancelBtnTxt}>Cancel</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Delete account */}
+                    <TouchableOpacity
+                        style={s.deleteBtn}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                            Alert.alert(
+                                'Delete Account',
+                                'Are you sure you want to delete your account? This action cannot be undone.',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Delete', style: 'destructive', onPress: () => router.replace('/register') },
+                                ]
+                            )
+                        }
+                    >
+                        <Text style={s.deleteTxt}>Delete my account</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
+// ??? Styles ??????????????????????????????????????????????????????????????????
+const s = StyleSheet.create({
+    safe: { flex: 1, backgroundColor: '#ffffff' },
+
+    // Header
+    header: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 14, paddingVertical: 12,
+    },
+    backBtn: { padding: 8 },
+    headerTitle: { fontSize: 17, fontWeight: '800', color: '#FF5F00' },
+
+    // Avatar
+    avatarBanner: {
+        backgroundColor: '#FFF3EC', alignItems: 'center',
+        paddingTop: 28, paddingBottom: 32,
+    },
+    avatarCircle: {
+        width: 70, height: 70, borderRadius: 35,
+        backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center',
+        shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+    },
+    avatarTxt: { fontSize: 24, fontWeight: '700', color: '#FF5F00' },
+
+    // Section
+    section: { paddingHorizontal: 16, paddingTop: 18 },
+    sectionLabel: { fontSize: 14, fontWeight: '700', color: '#1a1a1a', marginBottom: 8 },
+    divider: { height: 1, backgroundColor: '#ddd', marginBottom: 16 },
+
+    // Field card
+    fieldCard: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: '#ffffff', borderRadius: 12,
+        borderWidth: 1, borderColor: '#e8e8e8',
+        paddingHorizontal: 16, paddingVertical: 14,
+        marginBottom: 12,
+        shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+    },
+    fieldLeft: { flex: 1 },
+    fieldLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
+    fieldValue: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+    fieldPlaceholder: { color: '#bbb', fontWeight: '400' },
+    fieldInput: {
+        fontSize: 14, fontWeight: '600', color: '#1a1a1a',
+        padding: 0, borderBottomWidth: 1.5, borderBottomColor: '#FF5F00',
+    },
+
+    // Verified badge
+    verifiedBadge: {
+        alignSelf: 'flex-start', backgroundColor: '#FFE0CC',
+        borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3, marginTop: 6,
+    },
+    verifiedTxt: { fontSize: 11, fontWeight: '600', color: '#FF5F00' },
+
+    // Delete
+    deleteBtn: { alignItems: 'center', padding: 24, marginTop: 12 },
+    deleteTxt: { fontSize: 13, fontWeight: '700', color: '#1a1a1a' },
+
+    // Save / Cancel buttons
+    btnContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginTop: 8,
+        marginBottom: 4,
+    },
+    saveBtn: {
+        flex: 1,
+        backgroundColor: '#FF5F00',
+        borderRadius: 10,
+        paddingVertical: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#FF5F00',
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    saveBtnTxt: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    cancelBtn: {
         flex: 1,
         backgroundColor: '#FFF3EC',
-    },
-    // Top section
-    topSection: {
-        backgroundColor: '#FFF3EC',
-        paddingBottom: 40,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        borderWidth: 1,
+        borderColor: '#FFE0CC',
+        borderRadius: 10,
         paddingVertical: 12,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: ACCENT,
-    },
-    avatarContainer: {
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    avatar: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        borderWidth: 2.5,
-        borderColor: ACCENT,
-        backgroundColor: '#FFD0B0',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    avatarText: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: ACCENT,
-    },
-    // White card
-    formCard: {
-        flex: 1,
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        marginTop: -20,
-    },
-    formContent: {
-        paddingHorizontal: 20,
-        paddingTop: 28,
-        paddingBottom: 40,
-    },
-    sectionLabel: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#333',
-        marginBottom: 6,
-    },
-    sectionDivider: {
-        height: 1.5,
-        backgroundColor: '#e0e0e0',
-        marginBottom: 16,
-    },
-    // Field card
-    fieldCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderWidth: 1.5,
-        borderColor: '#e8e8e8',
-        borderRadius: 16,
-        paddingHorizontal: 18,
-        paddingVertical: 16,
-        marginBottom: 14,
-        backgroundColor: '#fff',
-    },
-    fieldInfo: {
-        flex: 1,
-    },
-    fieldLabel: {
-        fontSize: 12,
-        color: '#999',
-        marginBottom: 4,
-    },
-    fieldValue: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
-    },
-    fieldPlaceholder: {
-        color: '#aaa',
-        fontWeight: '400',
-    },
-    verifiedBadge: {
-        backgroundColor: '#FFF3EC',
-        paddingHorizontal: 10,
-        paddingVertical: 3,
-        borderRadius: 8,
-        alignSelf: 'flex-start',
-        marginTop: 4,
-    },
-    verifiedText: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: ACCENT,
-    },
-    // Delete
-    deleteBtn: {
-        alignItems: 'center',
-        marginTop: 20,
-    },
-    deleteText: {
+    cancelBtnTxt: {
+        color: '#FF5F00',
         fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        textDecorationLine: 'underline',
+        fontWeight: '700',
     },
 });

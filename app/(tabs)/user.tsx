@@ -1,21 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import React from 'react';
+import React, { useContext } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AuthContext } from '../../context/AuthContext';
 
 const ACCENT = '#FF5F00';
 
 const OPTIONS = [
     { icon: 'headset-outline' as const, label: 'Help Centre' },
     { icon: 'settings-outline' as const, label: 'Edit Profile' },
+    { icon: 'alert-circle-outline' as const, label: 'One Tap Emergency' },
     { icon: 'document-text-outline' as const, label: 'Terms and Privacy Policy' },
     { icon: 'information-circle-outline' as const, label: 'About FINDER' },
 ];
 
 export default function UserScreen() {
     const router = useRouter();
+    const { user } = useContext(AuthContext);
 
     const handleLogout = () => {
         Alert.alert(
@@ -49,7 +52,9 @@ export default function UserScreen() {
                     <View style={styles.avatarCircle}>
                         <Ionicons name="person" size={28} color="#999" />
                     </View>
-                    <Text style={styles.profileName}>Marcelino Zafra</Text>
+                    <Text style={styles.profileName}>
+                        {user ? `${user.firstName} ${user.lastName}` : 'Driver'}
+                    </Text>
                     <Ionicons name="chevron-forward" size={22} color="#999" />
                 </TouchableOpacity>
 
@@ -74,6 +79,8 @@ export default function UserScreen() {
                                     router.push('/edit-profile');
                                 } else if (item.label === 'Help Centre') {
                                     router.push('/help-centre');
+                                } else if (item.label === 'One Tap Emergency') {
+                                    router.push('/emergency-contact');
                                 }
                             }}
                         >

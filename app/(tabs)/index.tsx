@@ -52,18 +52,18 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Map */}
       <MapView
         style={styles.map}
         initialRegion={{
-          latitude: 15.4748,
-          longitude: 120.9640,
-          latitudeDelta: 0.06,
-          longitudeDelta: 0.06,
+          latitude: 15.4845,
+          longitude: 120.9612,
+          latitudeDelta: 0.018,
+          longitudeDelta: 0.018,
         }}
         showsUserLocation
         showsMyLocationButton={false}
       />
+
 
       {/* Earnings pill */}
       <TouchableOpacity
@@ -117,6 +117,18 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+  },
+  mapPlaceholder: {
+    backgroundColor: '#1a1a2e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  mapPlaceholderText: {
+    color: '#666',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   earningsPill: {
     position: 'absolute',
