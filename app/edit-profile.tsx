@@ -1,356 +1,382 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useContext, useState } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import {
-    Alert, ScrollView,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
-    KeyboardAvoidingView,
-    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { G, Path } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
-import { AuthContext } from '../context/AuthContext';
+import Svg, { Circle, G, Line, Path } from 'react-native-svg';
+import { AuthContext } from '@/context/AuthContext';
 
-// ??? Icons ????????????????????????????????????????????????????????????????????
-const BackArrow = ({ onPress }: { onPress: () => void }) => (
-    <TouchableOpacity onPress={onPress} style={s.backBtn} activeOpacity={0.7}>
-        <Svg width={22} height={18} viewBox="0 0 22 18">
-            <G fill="none" stroke="#FF5F00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <Path d="M20 9H2" /><Path d="M9 2L2 9l7 7" />
-            </G>
-        </Svg>
-    </TouchableOpacity>
-);
+const ACCENT = '#FF5F00';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-const PencilIcon = () => (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-        <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-            stroke="#FF5F00" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
-            stroke="#FF5F00" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-);
+// ── Validation helpers ───────────────────────────────────────────────────────
+function validateName(value: string, field: string): string | null {
+    if (!value.trim()) return `${field} is required.`;
+    if (value.trim().length > 50) return `${field} is too long.`;
+    return null;
+}
+function validateMobile(value: string): string | null {
+    if (!/^09\d{9}$/.test(value)) return 'Invalid mobile number format.';
+    return null;
+}
+function validateEmail(value: string): string | null {
+    if (!value.trim()) return null; // optional
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Invalid email format.';
+    if (value.length > 254) return 'Email is too long.';
+    return null;
+}
+function validatePassword(value: string): string | null {
+    if (value.length < 8) return 'Password must be at least 8 characters.';
+    if (value.length > 128) return 'Password is too long.';
+    return null;
+}
+function validateMpin(value: string): string | null {
+    if (!/^\d{4}$/.test(value)) return 'MPIN must be exactly 4 digits.';
+    return null;
+}
 
-// ??? Editable field card ???????????????????????????????????????????????????????
-function FieldCard({
-    label, value, placeholder, onSave, keyboardType = 'default', extra,
-}: {
-    label: string;
-    value: string;
-    placeholder?: string;
-    onSave: (v: string) => void;
-    keyboardType?: 'default' | 'email-address' | 'phone-pad';
-    extra?: React.ReactNode;
-}) {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(value);
-
-    const save = () => {
-        onSave(draft.trim() || value);
-        setEditing(false);
-    };
-
+// ── Eye icon ─────────────────────────────────────────────────────────────────
+function EyeIcon({ visible }: { visible: boolean }) {
     return (
-        <View style={s.fieldCard}>
-            <View style={s.fieldLeft}>
-                <Text style={s.fieldLabel}>{label}</Text>
-                {editing ? (
-                    <TextInput
-                        style={s.fieldInput}
-                        value={draft}
-                        onChangeText={setDraft}
-                        autoFocus
-                        returnKeyType="done"
-                        onSubmitEditing={save}
-                        onBlur={save}
-                        keyboardType={keyboardType}
-                    />
-                ) : (
-                    <Text style={[s.fieldValue, !value && s.fieldPlaceholder]}>
-                        {value || placeholder}
-                    </Text>
-                )}
-                {extra}
-            </View>
-            <TouchableOpacity onPress={() => { setDraft(value); setEditing(e => !e); }} activeOpacity={0.7}>
-                <PencilIcon />
-            </TouchableOpacity>
-        </View>
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+            {visible ? (
+                <G stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <Circle cx="12" cy="12" r="3" />
+                </G>
+            ) : (
+                <G stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <Path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <Line x1="1" y1="1" x2="23" y2="23" />
+                </G>
+            )}
+        </Svg>
     );
 }
 
-// ??? Screen ???????????????????????????????????????????????????????????????????
+// ── Types ────────────────────────────────────────────────────────────────────
+type FieldKey = 'firstName' | 'lastName' | 'mobileNumber' | 'email' | 'password' | 'mpin';
+
+interface FieldConfig {
+    key: FieldKey;
+    label: string;
+    placeholder: string;
+    keyboard?: 'default' | 'phone-pad' | 'email-address' | 'number-pad';
+    maxLength?: number;
+    secure?: boolean;
+    confirmLabel?: string;
+    confirmPlaceholder?: string;
+}
+
+const FIELDS: FieldConfig[] = [
+    { key: 'firstName', label: 'First Name', placeholder: 'Enter your first name', maxLength: 50 },
+    { key: 'lastName', label: 'Last Name', placeholder: 'Enter your last name', maxLength: 50 },
+    { key: 'mobileNumber', label: 'Mobile Number', placeholder: '09XXXXXXXXX', keyboard: 'phone-pad', maxLength: 11 },
+    { key: 'email', label: 'Email', placeholder: 'Enter your email', keyboard: 'email-address', maxLength: 254 },
+    {
+        key: 'password', label: 'Password', placeholder: 'New password',
+        secure: true, maxLength: 128,
+        confirmLabel: 'Confirm Password', confirmPlaceholder: 'Re-enter new password',
+    },
+    {
+        key: 'mpin', label: 'MPIN', placeholder: 'New 4-digit MPIN',
+        secure: true, keyboard: 'number-pad', maxLength: 4,
+        confirmLabel: 'Confirm MPIN', confirmPlaceholder: 'Re-enter MPIN',
+    },
+];
+
+// ── Main screen ──────────────────────────────────────────────────────────────
 export default function EditProfileScreen() {
     const router = useRouter();
-    const { user, setUser } = useContext(AuthContext);
+    const { user, setUser, accessToken } = useContext(AuthContext);
 
-    const [firstName, setFirstName] = useState(user?.firstName || 'N/A');
-    const [lastName, setLastName] = useState(user?.lastName || 'N/A');
-    const [mobileNumber, setMobileNumber] = useState(user?.mobileNumber || 'N/A');
-    const [email, setEmail] = useState(user?.email || 'N/A');
+    // ── Form state ───────────────────────────────────────────────────────────
+    const [editingField, setEditingField] = useState<FieldKey | null>(null);
+    const [fieldValue, setFieldValue] = useState('');
+    const [confirmValue, setConfirmValue] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
 
-    const hasChanges =
-        firstName !== (user?.firstName || 'N/A') ||
-        lastName !== (user?.lastName || 'N/A') ||
-        mobileNumber !== (user?.mobileNumber || 'N/A') ||
-        email !== (user?.email || 'N/A');
+    // ── Derived display values ───────────────────────────────────────────────
+    const displayValues: Record<FieldKey, string> = {
+        firstName: user?.firstName ?? '',
+        lastName: user?.lastName ?? '',
+        mobileNumber: user?.mobileNumber ?? '',
+        email: user?.email ?? '',
+        password: '••••••••',
+        mpin: user?.hasMpin ? '••••' : '',
+    };
 
-    const confirmSave = () => {
-        Alert.alert(
-            'Save Changes',
-            'Are you sure you want to save the changes to your profile?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Save',
-                    onPress: () => {
-                        setUser({
-                            ...user,
-                            firstName,
-                            lastName,
-                            mobileNumber,
-                            email,
-                        });
-                    },
+    // ── Open editor ──────────────────────────────────────────────────────────
+    const startEditing = useCallback((key: FieldKey) => {
+        setEditingField(key);
+        setFieldValue(key === 'password' || key === 'mpin' ? '' : (displayValues[key] ?? ''));
+        setConfirmValue('');
+        setShowPassword(false);
+        setShowConfirm(false);
+        setError(null);
+    }, [displayValues]);
+
+    // ── Save ─────────────────────────────────────────────────────────────────
+    const handleSave = async () => {
+        if (!editingField) return;
+        setError(null);
+
+        // Validate
+        let validationError: string | null = null;
+        switch (editingField) {
+            case 'firstName': validationError = validateName(fieldValue, 'First name'); break;
+            case 'lastName': validationError = validateName(fieldValue, 'Last name'); break;
+            case 'mobileNumber': validationError = validateMobile(fieldValue); break;
+            case 'email': validationError = validateEmail(fieldValue); break;
+            case 'password':
+                validationError = validatePassword(fieldValue);
+                if (!validationError && fieldValue !== confirmValue) {
+                    validationError = 'Passwords do not match.';
+                }
+                break;
+            case 'mpin':
+                validationError = validateMpin(fieldValue);
+                if (!validationError && fieldValue !== confirmValue) {
+                    validationError = 'MPINs do not match.';
+                }
+                break;
+        }
+        if (validationError) return setError(validationError);
+
+        setSaving(true);
+        try {
+            const body: Record<string, string> = {};
+            if (editingField === 'password') {
+                body.password = fieldValue;
+                body.confirmPassword = confirmValue;
+            } else if (editingField === 'mpin') {
+                body.mpin = fieldValue;
+                body.confirmMpin = confirmValue;
+            } else {
+                body[editingField] = fieldValue.trim();
+            }
+
+            const res = await fetch(`${API_URL}/driver/edit-profile`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${accessToken}`,
                 },
-            ]
-        );
+                body: JSON.stringify(body),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.message || 'Update failed.');
+                return;
+            }
+
+            // Update context so the whole app reflects the change
+            if (data.user) setUser(data.user);
+            setEditingField(null);
+        } catch {
+            setError('Unable to reach the server.');
+        } finally {
+            setSaving(false);
+        }
     };
 
-    const handleCancel = () => {
-        setFirstName(user?.firstName || 'N/A');
-        setLastName(user?.lastName || 'N/A');
-        setMobileNumber(user?.mobileNumber || 'N/A');
-        setEmail(user?.email || 'N/A');
-    };
-
-    const profileName = `${firstName !== 'N/A' ? firstName : ''} ${lastName !== 'N/A' ? lastName : ''}`.trim();
-    const initials = profileName
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w: string) => w[0])
-        .join('')
-        .toUpperCase() || '?';
+    // ── Render ────────────────────────────────────────────────────────────────
+    const activeField = FIELDS.find(f => f.key === editingField);
+    const initials = `${(user?.firstName ?? '')[0] ?? ''}${(user?.lastName ?? '')[0] ?? ''}`.toUpperCase();
 
     return (
         <SafeAreaView style={s.safe}>
-            {/* Header */}
-            <View style={s.header}>
-                <BackArrow onPress={() => router.back()} />
-                <Text style={s.headerTitle}>User Profile</Text>
-                <View style={{ width: 38 }} />
-            </View>
+            <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={{ flex: 1 }}
-            >
-                <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Avatar banner */}
-                    <View style={s.avatarBanner}>
-                        <View style={s.avatarCircle}>
-                            <Text style={s.avatarTxt}>
-                                {initials}
-                            </Text>
+                {/* ── Top section (orange background) ─────────────── */}
+                <View style={s.topSection}>
+                    <View style={s.headerRow}>
+                        <TouchableOpacity onPress={() => editingField ? setEditingField(null) : router.back()} activeOpacity={0.7}>
+                            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+                        </TouchableOpacity>
+                        <Text style={s.headerTitle}>{editingField ? 'Edit Field' : 'User Profile'}</Text>
+                        <View style={{ width: 24 }} />
+                    </View>
+                    <View style={s.avatarWrap}>
+                        <View style={s.avatar}>
+                            <Text style={s.avatarText}>{initials}</Text>
                         </View>
                     </View>
+                </View>
 
-                    {/* Personal details */}
-                    <View style={s.section}>
-                        <Text style={s.sectionLabel}>Personal details</Text>
-                        <View style={s.divider} />
+                {/* ── White card ──────────────────────────────────── */}
+                <ScrollView style={s.card} contentContainerStyle={s.cardContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-                        <FieldCard
-                            label="First Name"
-                            value={firstName}
-                            onSave={setFirstName}
-                        />
+                    {editingField && activeField ? (
+                        /* ── Inline editor ── */
+                        <>
+                            <Text style={s.sectionLabel}>{activeField.label}</Text>
+                            <View style={s.divider} />
 
-                        <FieldCard
-                            label="Last Name"
-                            value={lastName}
-                            onSave={setLastName}
-                        />
+                            {activeField.secure ? (
+                                <>
+                                    {/* New value */}
+                                    <View style={s.passwordRow}>
+                                        <TextInput
+                                            style={s.passwordInput}
+                                            placeholder={activeField.placeholder}
+                                            placeholderTextColor="#aaa"
+                                            secureTextEntry={!showPassword}
+                                            value={fieldValue}
+                                            onChangeText={t => {
+                                                setError(null);
+                                                if (activeField.keyboard === 'number-pad') {
+                                                    setFieldValue(t.replace(/[^0-9]/g, ''));
+                                                } else {
+                                                    setFieldValue(t);
+                                                }
+                                            }}
+                                            maxLength={activeField.maxLength}
+                                            autoCapitalize="none"
+                                            keyboardType={activeField.keyboard ?? 'default'}
+                                        />
+                                        <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={s.eyeBtn}>
+                                            <EyeIcon visible={showPassword} />
+                                        </TouchableOpacity>
+                                    </View>
 
-                        <FieldCard
-                            label="Mobile Number"
-                            value={mobileNumber}
-                            onSave={setMobileNumber}
-                            keyboardType="phone-pad"
-                            extra={
-                                <View style={s.verifiedBadge}>
-                                    <Text style={s.verifiedTxt}>Verified</Text>
-                                </View>
-                            }
-                        />
+                                    {/* Confirm */}
+                                    <View style={[s.passwordRow, { marginTop: 12 }]}>
+                                        <TextInput
+                                            style={s.passwordInput}
+                                            placeholder={activeField.confirmPlaceholder}
+                                            placeholderTextColor="#aaa"
+                                            secureTextEntry={!showConfirm}
+                                            value={confirmValue}
+                                            onChangeText={t => {
+                                                setError(null);
+                                                if (activeField.keyboard === 'number-pad') {
+                                                    setConfirmValue(t.replace(/[^0-9]/g, ''));
+                                                } else {
+                                                    setConfirmValue(t);
+                                                }
+                                            }}
+                                            maxLength={activeField.maxLength}
+                                            autoCapitalize="none"
+                                            keyboardType={activeField.keyboard ?? 'default'}
+                                        />
+                                        <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={s.eyeBtn}>
+                                            <EyeIcon visible={showConfirm} />
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            ) : (
+                                <TextInput
+                                    style={s.input}
+                                    placeholder={activeField.placeholder}
+                                    placeholderTextColor="#aaa"
+                                    value={fieldValue}
+                                    onChangeText={t => {
+                                        setError(null);
+                                        if (activeField.keyboard === 'phone-pad') {
+                                            setFieldValue(t.replace(/[^0-9]/g, ''));
+                                        } else {
+                                            setFieldValue(t);
+                                        }
+                                    }}
+                                    keyboardType={activeField.keyboard ?? 'default'}
+                                    maxLength={activeField.maxLength}
+                                    autoCapitalize={activeField.key === 'email' ? 'none' : 'words'}
+                                    autoFocus
+                                />
+                            )}
 
-                        <FieldCard
-                            label="Email"
-                            value={email}
-                            placeholder="Add an e-mail address"
-                            onSave={setEmail}
-                            keyboardType="email-address"
-                        />
+                            {error && <Text style={s.errorText}>{error}</Text>}
 
-                        {/* MPIN card as a row that routes to /setup-mpin */}
-                        <TouchableOpacity
-                            style={s.fieldCard}
-                            activeOpacity={0.7}
-                            onPress={() => router.push('/setup-mpin')}
-                        >
-                            <View style={s.fieldLeft}>
-                                <Text style={s.fieldLabel}>MPIN</Text>
-                                <Text style={[s.fieldValue, s.fieldPlaceholder]}>
-                                    Create MPIN
-                                </Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={20} color="#ccc" style={{ marginRight: 4 }} />
-                        </TouchableOpacity>
+                            <TouchableOpacity style={[s.saveBtn, saving && s.saveBtnDim]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
+                                {saving
+                                    ? <ActivityIndicator color="#fff" />
+                                    : <Text style={s.saveBtnText}>SAVE</Text>}
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        /* ── Field list ── */
+                        <>
+                            <Text style={s.sectionLabel}>Personal details</Text>
+                            <View style={s.divider} />
 
-                        {hasChanges && (
-                            <View style={s.btnContainer}>
-                                <TouchableOpacity
-                                    style={s.saveBtn}
-                                    activeOpacity={0.8}
-                                    onPress={confirmSave}
-                                >
-                                    <Text style={s.saveBtnTxt}>Save Changes</Text>
+                            {FIELDS.map(f => (
+                                <TouchableOpacity key={f.key} style={s.fieldCard} activeOpacity={0.7} onPress={() => startEditing(f.key)}>
+                                    <View style={s.fieldInfo}>
+                                        <Text style={s.fieldLabel}>{f.label}</Text>
+                                        <Text style={[s.fieldValue, !displayValues[f.key] && s.fieldPlaceholder]}>
+                                            {displayValues[f.key] || `Add ${f.label.toLowerCase()}`}
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="pencil" size={18} color={ACCENT} />
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={s.cancelBtn}
-                                    activeOpacity={0.8}
-                                    onPress={handleCancel}
-                                >
-                                    <Text style={s.cancelBtnTxt}>Cancel</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </View>
+                            ))}
 
-                    {/* Delete account */}
-                    <TouchableOpacity
-                        style={s.deleteBtn}
-                        activeOpacity={0.7}
-                        onPress={() =>
-                            Alert.alert(
-                                'Delete Account',
-                                'Are you sure you want to delete your account? This action cannot be undone.',
-                                [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    { text: 'Delete', style: 'destructive', onPress: () => router.replace('/register') },
-                                ]
-                            )
-                        }
-                    >
-                        <Text style={s.deleteTxt}>Delete my account</Text>
-                    </TouchableOpacity>
+                            <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7}>
+                                <Text style={s.deleteText}>Delete my account</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }
 
-// ??? Styles ??????????????????????????????????????????????????????????????????
+// ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: '#ffffff' },
+    safe: { flex: 1, backgroundColor: '#FFF3EC' },
+    flex: { flex: 1 },
 
-    // Header
-    header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: 14, paddingVertical: 12,
-    },
-    backBtn: { padding: 8 },
-    headerTitle: { fontSize: 17, fontWeight: '800', color: '#FF5F00' },
+    // Top
+    topSection: { paddingBottom: 40 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+    headerTitle: { fontSize: 18, fontWeight: '700', color: ACCENT },
+    avatarWrap: { alignItems: 'center', marginTop: 8 },
+    avatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 2.5, borderColor: ACCENT, backgroundColor: '#FFD0B0', alignItems: 'center', justifyContent: 'center' },
+    avatarText: { fontSize: 24, fontWeight: '700', color: ACCENT },
 
-    // Avatar
-    avatarBanner: {
-        backgroundColor: '#FFF3EC', alignItems: 'center',
-        paddingTop: 28, paddingBottom: 32,
-    },
-    avatarCircle: {
-        width: 70, height: 70, borderRadius: 35,
-        backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center',
-        shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
-    },
-    avatarTxt: { fontSize: 24, fontWeight: '700', color: '#FF5F00' },
+    // Card
+    card: { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20 },
+    cardContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 40 },
 
-    // Section
-    section: { paddingHorizontal: 16, paddingTop: 18 },
-    sectionLabel: { fontSize: 14, fontWeight: '700', color: '#1a1a1a', marginBottom: 8 },
-    divider: { height: 1, backgroundColor: '#ddd', marginBottom: 16 },
+    sectionLabel: { fontSize: 15, fontWeight: '700', color: '#333', marginBottom: 6 },
+    divider: { height: 1.5, backgroundColor: '#e0e0e0', marginBottom: 16 },
 
-    // Field card
-    fieldCard: {
-        flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#ffffff', borderRadius: 12,
-        borderWidth: 1, borderColor: '#e8e8e8',
-        paddingHorizontal: 16, paddingVertical: 14,
-        marginBottom: 12,
-        shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
-    },
-    fieldLeft: { flex: 1 },
-    fieldLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
-    fieldValue: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-    fieldPlaceholder: { color: '#bbb', fontWeight: '400' },
-    fieldInput: {
-        fontSize: 14, fontWeight: '600', color: '#1a1a1a',
-        padding: 0, borderBottomWidth: 1.5, borderBottomColor: '#FF5F00',
-    },
+    // Field list
+    fieldCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#e8e8e8', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 14, backgroundColor: '#fff' },
+    fieldInfo: { flex: 1 },
+    fieldLabel: { fontSize: 12, color: '#999', marginBottom: 4 },
+    fieldValue: { fontSize: 15, fontWeight: '600', color: '#333' },
+    fieldPlaceholder: { color: '#aaa', fontWeight: '400' },
 
-    // Verified badge
-    verifiedBadge: {
-        alignSelf: 'flex-start', backgroundColor: '#FFE0CC',
-        borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3, marginTop: 6,
-    },
-    verifiedTxt: { fontSize: 11, fontWeight: '600', color: '#FF5F00' },
+    // Editor
+    input: { borderWidth: 1.5, borderColor: '#e8e8e8', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1a1a1a', backgroundColor: '#fff' },
+    passwordRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#e8e8e8', borderRadius: 12, backgroundColor: '#fff' },
+    passwordInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1a1a1a' },
+    eyeBtn: { paddingHorizontal: 14, paddingVertical: 14 },
+    errorText: { fontSize: 13, color: '#e53935', marginTop: 8 },
 
-    // Delete
-    deleteBtn: { alignItems: 'center', padding: 24, marginTop: 12 },
-    deleteTxt: { fontSize: 13, fontWeight: '700', color: '#1a1a1a' },
+    saveBtn: { backgroundColor: ACCENT, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 20 },
+    saveBtnDim: { opacity: 0.5 },
+    saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 1.5 },
 
-    // Save / Cancel buttons
-    btnContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        gap: 12,
-        marginTop: 8,
-        marginBottom: 4,
-    },
-    saveBtn: {
-        flex: 1,
-        backgroundColor: '#FF5F00',
-        borderRadius: 10,
-        paddingVertical: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#FF5F00',
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    saveBtnTxt: {
-        color: '#ffffff',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    cancelBtn: {
-        flex: 1,
-        backgroundColor: '#FFF3EC',
-        borderWidth: 1,
-        borderColor: '#FFE0CC',
-        borderRadius: 10,
-        paddingVertical: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    cancelBtnTxt: {
-        color: '#FF5F00',
-        fontSize: 14,
-        fontWeight: '700',
-    },
+    deleteBtn: { alignItems: 'center', marginTop: 20 },
+    deleteText: { fontSize: 14, fontWeight: '600', color: '#333', textDecorationLine: 'underline' },
 });

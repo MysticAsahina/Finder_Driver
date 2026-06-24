@@ -1,6 +1,10 @@
 import * as SecureStore from "expo-secure-store";
 import { createContext, ReactNode, useEffect, useState } from "react";
 
+// LOCAL
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+
 export type EmergencyContact = {
   firstName: string;
   lastName: string;
@@ -8,17 +12,23 @@ export type EmergencyContact = {
 };
 
 type AuthContextType = {
+  loading: boolean;
+  accessToken: string | null;
+  setAccessToken: React.Dispatch<React.SetStateAction<string | null>>;
   user: any;
-  setUser: (user: any) => Promise<void>;
+  setUser: React.Dispatch<React.SetStateAction<any>>;
   emergencyContact: EmergencyContact | null;
   setEmergencyContact: (contact: EmergencyContact | null) => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextType>({
+  loading: true,
+  accessToken: null,
+  setAccessToken: () => { },
   user: null,
-  setUser: async () => {},
+  setUser: () => { },
   emergencyContact: null,
-  setEmergencyContact: async () => {},
+  setEmergencyContact: async () => { },
 });
 
 const DEFAULT_USER = {
@@ -28,39 +38,91 @@ const DEFAULT_USER = {
   email: '',
 };
 
+// MICHAEL
+
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUserState] = useState<any>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [emergencyContact, setEmergencyContactState] = useState<EmergencyContact | null>(null);
 
   useEffect(() => {
-    loadUser();
-    loadEmergencyContact();
+    restoreSession();
   }, []);
 
-  async function loadUser() {
+  async function restoreSession() {
     try {
-      const stored = await SecureStore.getItemAsync("driver_profile");
-      if (stored) {
-        setUserState(JSON.parse(stored));
-      } else {
-        setUserState(DEFAULT_USER);
+      const refreshToken =
+        await SecureStore.getItemAsync("refreshToken");
+
+      if (!refreshToken) {
+        setLoading(false);
+        return;
       }
+
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken: refreshToken }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          await SecureStore.deleteItemAsync("refreshToken");
+          setAccessToken(null);
+          setUser(null);
+        }
+
+        return;
+      }
+
+      setAccessToken(data.accessToken);
+      setUser(data.user);
+      registerPushToken(data.accessToken);
+
+      // Store the rotated refresh token
+      if (data.refreshToken) {
+        await SecureStore.setItemAsync('refreshToken', data.refreshToken);
+      }
+
     } catch (err) {
-      console.error("Failed to load driver profile:", err);
-      setUserState(DEFAULT_USER);
+      console.log(err);
+    } finally {
+      setLoading(false);
     }
   }
 
-  async function setUser(updatedUser: any) {
+  async function registerPushToken(token: string) {
     try {
-      if (updatedUser) {
-        await SecureStore.setItemAsync("driver_profile", JSON.stringify(updatedUser));
-      } else {
-        await SecureStore.deleteItemAsync("driver_profile");
+      const Notifications = require('expo-notifications');
+
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
       }
-      setUserState(updatedUser);
+      if (finalStatus !== 'granted') return;
+
+      const pushTokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: require('expo-constants').default.expoConfig?.extra?.eas?.projectId,
+      });
+
+      await fetch(`${API_URL}/support/push-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pushToken: pushTokenData.data }),
+      });
     } catch (err) {
-      console.error("Failed to save driver profile:", err);
+      console.error('Failed to register push token:', err);
     }
   }
 
@@ -68,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const contactStr = await SecureStore.getItemAsync("emergencyContact");
       if (contactStr) {
-        setEmergencyContactState(JSON.parse(contactStr));
+        setEmergencyContact(JSON.parse(contactStr));
       }
     } catch (err) {
       console.error("Failed to load emergency contact:", err);
@@ -82,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         await SecureStore.deleteItemAsync("emergencyContact");
       }
-      setEmergencyContactState(contact);
+      setEmergencyContact(contact);
     } catch (err) {
       console.error("Failed to save emergency contact:", err);
     }
@@ -95,6 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser,
         emergencyContact,
         setEmergencyContact,
+        loading,
+        accessToken,
+        setAccessToken,
       }}
     >
       {children}

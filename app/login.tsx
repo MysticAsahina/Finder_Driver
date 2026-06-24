@@ -54,6 +54,7 @@ export default function LoginScreen() {
     const [mobile,       setMobile]       = useState('');
     const [password,     setPassword]     = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe,   setRememberMe]   = useState(false);
     const [error,        setError]        = useState<string | null>(null);
     const [loading,      setLoading]      = useState(false);
 
@@ -95,6 +96,7 @@ export default function LoginScreen() {
                     mobileNumber: mobile.trim(),
                     password:     password.trim(),
                     role:         'driver',
+                    rememberMe,
                 }),
             });
 
@@ -170,9 +172,26 @@ export default function LoginScreen() {
 
                         {error && <Text style={styles.errorText}>{error}</Text>}
 
-                        <TouchableOpacity style={styles.forgotRow} activeOpacity={0.7} onPress={() => router.push('/forgot-password')}>
-                            <Text style={styles.forgotText}>Forgot password?</Text>
-                        </TouchableOpacity>
+                        {/* Remember Me + Forgot Password */}
+                        <View style={styles.optionsRow}>
+                            <TouchableOpacity
+                                style={styles.rememberRow}
+                                onPress={() => setRememberMe(v => !v)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                                    {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                                </View>
+                                <Text style={styles.rememberLabel}>Remember me</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => router.push('/forgot-password')}
+                            >
+                                <Text style={styles.forgotText}>Forgot password?</Text>
+                            </TouchableOpacity>
+                        </View>
 
                         <TouchableOpacity
                             style={[styles.loginBtn, loading && styles.loginBtnDim]}
@@ -211,7 +230,12 @@ const styles = StyleSheet.create({
     passwordInput:   { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1a1a1a' },
     eyeBtn:          { paddingHorizontal: 14, paddingVertical: 14 },
     errorText:       { fontSize: 13, color: '#e53935', marginTop: -4 },
-    forgotRow:       { alignItems: 'flex-end', marginTop: -4 },
+    optionsRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -4 },
+    rememberRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    checkbox:        { width: 18, height: 18, borderWidth: 1.5, borderColor: '#aaa', borderRadius: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+    checkboxChecked: { backgroundColor: ACCENT, borderColor: ACCENT },
+    checkmark:       { color: '#fff', fontSize: 11, fontWeight: '700' },
+    rememberLabel:   { fontSize: 13, color: '#555' },
     forgotText:      { fontSize: 13, color: ACCENT },
     loginBtn:        { backgroundColor: ACCENT, borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
     loginBtnDim:     { opacity: 0.6 },
