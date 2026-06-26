@@ -1,10 +1,10 @@
+import { AuthContext } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useContext } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AuthContext } from '@/context/AuthContext';
 
 const ACCENT = '#FF5F00';
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -12,6 +12,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const OPTIONS = [
     { icon: 'headset-outline' as const, label: 'Help Centre' },
     { icon: 'settings-outline' as const, label: 'Edit Profile' },
+    { icon: 'alert-circle-outline' as const, label: 'One Tap Emergency' },
     { icon: 'document-text-outline' as const, label: 'Terms and Privacy Policy' },
     { icon: 'information-circle-outline' as const, label: 'About FINDER' },
 ];
@@ -40,7 +41,7 @@ export default function UserScreen() {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ refreshToken }),
-                            }).catch(() => {}); // non-fatal
+                            }).catch(() => { }); // non-fatal
                         }
                         await SecureStore.deleteItemAsync('refreshToken');
                         setAccessToken(null);
@@ -91,6 +92,8 @@ export default function UserScreen() {
                                     router.push('/edit-profile');
                                 } else if (item.label === 'Help Centre') {
                                     router.push('/help-centre');
+                                } else if (item.label === 'One Tap Emergency') {
+                                    router.push('/emergency-contact');
                                 }
                             }}
                         >

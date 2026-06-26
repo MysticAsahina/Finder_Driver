@@ -12,6 +12,33 @@ import { useRouter } from 'expo-router';
 
 const ACCENT = '#FF5F00';
 
+const MOCK_SUPPORT_LOGS = [
+    {
+        id: '1',
+        title: 'Passenger Left Phone on Seat',
+        status: 'Pending',
+        adminReply: 'Admin: We are verifying the report. Please coordinate with the passenger Marcelino Zafra if they reach out.',
+        refNo: '109384012',
+        date: 'June 08, 2026',
+    },
+    {
+        id: '2',
+        title: 'App Location Accuracy Issue',
+        status: 'Resolved',
+        adminReply: 'Admin: Please make sure location accuracy is set to High and update your Google Play Services.',
+        refNo: '208472910',
+        date: 'June 07, 2026',
+    },
+    {
+        id: '3',
+        title: 'Fare Rate Discrepancy',
+        status: 'Resolved',
+        adminReply: 'Admin: The fare calculation has been adjusted to match TODA guidelines.',
+        refNo: '304958102',
+        date: 'June 04, 2026',
+    },
+];
+
 export default function HelpCentreScreen() {
     const router = useRouter();
 
@@ -54,10 +81,42 @@ export default function HelpCentreScreen() {
                     <View style={styles.supportIcon}>
                         <Ionicons name="headset" size={24} color={ACCENT} />
                     </View>
-                    <Text style={styles.supportText}>
-                        Contact support for assistance or to share your feedback.
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.supportText}>
+                            Contact support for assistance or to share your feedback.
+                        </Text>
+                        <Text style={styles.supportTap}>Tap to chat with us →</Text>
+                    </View>
                 </TouchableOpacity>
+
+                {/* Support Logs History */}
+                <Text style={styles.historyTitle}>Support Logs</Text>
+                <View style={styles.historyList}>
+                    {MOCK_SUPPORT_LOGS.map(log => (
+                        <TouchableOpacity
+                            key={log.id}
+                            style={styles.logCard}
+                            activeOpacity={0.85}
+                            onPress={() => router.push('/support-chat')}
+                        >
+                            <View style={styles.logHeader}>
+                                <Text style={styles.logTitle}>{log.title}</Text>
+                                <Text style={[styles.logStatus, log.status === 'Pending' ? styles.statusPending : styles.statusResolved]}>
+                                    {log.status}
+                                </Text>
+                            </View>
+
+                            <Text style={styles.logReply} numberOfLines={2}>
+                                {log.adminReply}
+                            </Text>
+
+                            <View style={styles.logFooter}>
+                                <Text style={styles.logDate}>Date: {log.date}</Text>
+                                <Text style={styles.logRef}>Reference No. {log.refNo}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
             </ScrollView>
         </SafeAreaView>
     );
@@ -148,10 +207,84 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     supportText: {
-        flex: 1,
         fontSize: 13,
         color: ACCENT,
         lineHeight: 19,
         fontWeight: '600',
+    },
+    supportTap: {
+        fontSize: 11,
+        color: ACCENT,
+        marginTop: 4,
+        opacity: 0.7,
+    },
+    // Support History Logs
+    historyTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1a1a1a',
+        marginTop: 28,
+        marginBottom: 12,
+    },
+    historyList: {
+        width: '100%',
+    },
+    logCard: {
+        backgroundColor: '#ffffff',
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: '#e8e8e8',
+        padding: 16,
+        marginBottom: 12,
+        shadowColor: '#000',
+        shadowOpacity: 0.03,
+        shadowRadius: 6,
+        elevation: 1,
+    },
+    logHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    logTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1a1a1a',
+        flex: 1,
+        marginRight: 12,
+    },
+    logStatus: {
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    statusPending: {
+        color: '#ff4d4d',
+    },
+    statusResolved: {
+        color: '#2e7d32',
+    },
+    logReply: {
+        fontSize: 13,
+        color: '#333333',
+        lineHeight: 18,
+        marginBottom: 12,
+    },
+    logFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: '#f0f0f0',
+        paddingTop: 10,
+    },
+    logDate: {
+        fontSize: 12,
+        color: '#888888',
+    },
+    logRef: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#1a1a1a',
     },
 });

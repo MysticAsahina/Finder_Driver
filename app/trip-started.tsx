@@ -1,14 +1,17 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useContext } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     StyleSheet,
+    Alert,
+    Linking,
+    Platform,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -16,6 +19,7 @@ import Animated, {
     runOnJS,
 } from 'react-native-reanimated';
 import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AuthContext } from '../context/AuthContext';
 
 const ACCENT = '#FF5F00';
 
@@ -45,6 +49,7 @@ const SHEET_COLLAPSED_HEIGHT = 240;
 export default function TripStartedScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { emergencyContact } = useContext(AuthContext);
     const params = useLocalSearchParams<{
         name?: string;
         dropoff?: string;
@@ -58,7 +63,7 @@ export default function TripStartedScreen() {
         params.dropoffFull ||
         'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
 
-    const mapRef = useRef<MapView>(null);
+    const mapRef = useRef<any>(null);
 
     const sheetHeight = useSharedValue(SHEET_EXPANDED_HEIGHT);
     const dragStart = useSharedValue(0);
@@ -109,19 +114,67 @@ export default function TripStartedScreen() {
             (SHEET_EXPANDED_HEIGHT - SHEET_COLLAPSED_HEIGHT),
     }));
 
+    const triggerEmergencyAlert = async () => {
+        if (!emergencyContact) {
+            Alert.alert(
+                'No Emergency Contact Set',
+                'Please set up an emergency contact in your Profile page under "One Tap Emergency".',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
+        if (!emergencyContact.mobileNumber) {
+            Alert.alert(
+                'Incomplete Contact details',
+                'Please set up an emergency contact mobile number in your Profile page.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
+        Alert.alert(
+            'Trigger Emergency',
+            `Send emergency text message to ${emergencyContact.firstName} ${emergencyContact.lastName} (${emergencyContact.mobileNumber})?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Send SMS',
+                    onPress: () => {
+                        const msg = `EMERGENCY: I am a FINDER driver on an active trip. Please contact or track me. (Trip Destination: ${dropoffFull})`;
+                        const separator = Platform.OS === 'ios' ? '&' : '?';
+                        const url = `sms:${emergencyContact.mobileNumber}${separator}body=${encodeURIComponent(msg)}`;
+                        Linking.openURL(url).catch(err => {
+                            console.error(err);
+                            Alert.alert('Error', 'Could not open SMS application.');
+                        });
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <GestureHandlerRootView style={styles.container}>
-            {/* MAP — full screen */}
             <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFillObject}
-                provider={PROVIDER_DEFAULT}
                 initialRegion={INITIAL_REGION}
                 showsUserLocation
                 showsMyLocationButton={false}
             >
-                <Marker coordinate={DROPOFF_COORDS} pinColor={ACCENT} />
+                <Marker coordinate={DROPOFF_COORDS} title="Drop Off" />
             </MapView>
+
+            {/* Floating One Tap Emergency Button */}
+            <TouchableOpacity
+                style={[styles.emergencyFloatingBtn, { top: insets.top + 16 }]}
+                onPress={triggerEmergencyAlert}
+                activeOpacity={0.85}
+            >
+                <Ionicons name="alert-circle" size={20} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text style={styles.emergencyFloatingTxt}>Emergency</Text>
+            </TouchableOpacity>
 
             {/* BOTTOM SHEET */}
             <Animated.View style={[styles.bottomSheet, animatedSheetStyle]}>
@@ -211,6 +264,18 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#eee',
+    },
+    mapPlaceholder: {
+        backgroundColor: '#1a1a2e',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    mapPlaceholderText: {
+        color: '#555',
+        fontSize: 13,
+        textAlign: 'center',
+        lineHeight: 20,
     },
     bottomSheet: {
         position: 'absolute',
@@ -343,5 +408,27 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '700',
         letterSpacing: 1,
+    },
+    emergencyFloatingBtn: {
+        position: 'absolute',
+        right: 16,
+        zIndex: 20,
+        backgroundColor: '#E53E3E',
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        shadowColor: '#E53E3E',
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 5,
+    },
+    emergencyFloatingTxt: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '800',
+        letterSpacing: 0.5,
     },
 });

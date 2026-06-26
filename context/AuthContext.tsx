@@ -1,7 +1,15 @@
 import * as SecureStore from "expo-secure-store";
 import { createContext, ReactNode, useEffect, useState } from "react";
 
+// LOCAL
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+export type EmergencyContact = {
+  firstName: string;
+  lastName: string;
+  mobileNumber: string;
+};
 
 type AuthContextType = {
   loading: boolean;
@@ -9,6 +17,8 @@ type AuthContextType = {
   setAccessToken: React.Dispatch<React.SetStateAction<string | null>>;
   user: any;
   setUser: React.Dispatch<React.SetStateAction<any>>;
+  emergencyContact: EmergencyContact | null;
+  setEmergencyContact: (contact: EmergencyContact | null) => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextType>({
@@ -17,12 +27,25 @@ export const AuthContext = createContext<AuthContextType>({
   setAccessToken: () => { },
   user: null,
   setUser: () => { },
+  emergencyContact: null,
+  setEmergencyContact: async () => { },
 });
+
+const DEFAULT_USER = {
+  firstName: 'Marcelino',
+  lastName: 'Zafra',
+  mobileNumber: '+63 9295624051',
+  email: '',
+};
+
+// MICHAEL
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [emergencyContact, setEmergencyContactState] = useState<EmergencyContact | null>(null);
 
   useEffect(() => {
     restoreSession();
@@ -103,14 +126,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function loadEmergencyContact() {
+    try {
+      const contactStr = await SecureStore.getItemAsync("emergencyContact");
+      if (contactStr) {
+        setEmergencyContact(JSON.parse(contactStr));
+      }
+    } catch (err) {
+      console.error("Failed to load emergency contact:", err);
+    }
+  }
+
+  async function setEmergencyContact(contact: EmergencyContact | null) {
+    try {
+      if (contact) {
+        await SecureStore.setItemAsync("emergencyContact", JSON.stringify(contact));
+      } else {
+        await SecureStore.deleteItemAsync("emergencyContact");
+      }
+      setEmergencyContact(contact);
+    } catch (err) {
+      console.error("Failed to save emergency contact:", err);
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
+        user,
+        setUser,
+        emergencyContact,
+        setEmergencyContact,
         loading,
         accessToken,
         setAccessToken,
-        user,
-        setUser,
       }}
     >
       {children}
