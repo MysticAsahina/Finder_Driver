@@ -7,7 +7,7 @@ import {
     FlatList, KeyboardAvoidingView, Platform,
     StyleSheet,
     Text, TextInput, TouchableOpacity,
-    View,
+    View, AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
@@ -32,6 +32,7 @@ export default function SupportChatScreen() {
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
     const [ticketId, setTicketId] = useState<string | null>(null);
+    const [isResolved, setIsResolved] = useState(false);
     const socketRef = useRef<Socket | null>(null);
     const listRef = useRef<FlatList>(null);
 
@@ -75,6 +76,7 @@ export default function SupportChatScreen() {
             );
             const msgsData = await msgsRes.json();
             setMsgs(msgsData.messages || []);
+            setIsResolved(msgsData.status === 'resolved');
 
             socket = io(API_URL, {
                 auth: { token: accessToken },
@@ -87,9 +89,21 @@ export default function SupportChatScreen() {
 
             socket.on('receive_message', (newMsg: Message) => {
                 setMsgs(prev => {
+                    // Avoid exact duplicates
                     if (prev.some(m => m._id === newMsg._id)) return prev;
+                    // Avoid flicker: if this is a broadcast of our own optimistic message, ignore it
+                    const isOwnOptimistic = prev.some(m => 
+                        m.body === newMsg.body && 
+                        m.senderRole === newMsg.senderRole && 
+                        m._id.length < 24 // Optimistic IDs are 13 chars
+                    );
+                    if (isOwnOptimistic) return prev;
                     return [...prev, newMsg];
                 });
+            });
+
+            socket.on('ticket_resolved', () => {
+                setIsResolved(true);
             });
 
             socketRef.current = socket;
@@ -97,7 +111,20 @@ export default function SupportChatScreen() {
 
         initialize();
 
+        const subscription = AppState.addEventListener('change', nextAppState => {
+            if (nextAppState === 'active') {
+                if (socket && !socket.connected) {
+                    socket.connect();
+                }
+            } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+                if (socket && socket.connected) {
+                    socket.disconnect();
+                }
+            }
+        });
+
         return () => {
+            subscription.remove();
             if (socket) socket.disconnect();
         };
     }, [accessToken]);
@@ -136,11 +163,15 @@ export default function SupportChatScreen() {
                 }
             );
             const data = await res.json();
-            setMsgs(prev =>
-                prev.map(m => m._id === optimisticMsg._id ? data.message : m)
-            );
+            setMsgs(prev => {
+                if (prev.some(m => m._id === data.message._id)) {
+                    return prev.filter(m => m._id !== optimisticMsg._id);
+                }
+                return prev.map(m => m._id === optimisticMsg._id ? data.message : m);
+            });
         } catch (err) {
             console.error('Failed to send message:', err);
+            setMsgs(prev => prev.filter(m => m._id !== optimisticMsg._id));
         } finally {
             setSending(false);
         }
@@ -200,23 +231,29 @@ export default function SupportChatScreen() {
                 />
 
                 {/* Input bar */}
-                <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
-                    <TouchableOpacity style={styles.plusBtn} activeOpacity={0.7}>
-                        <Ionicons name="add" size={24} color={ACCENT} />
-                    </TouchableOpacity>
-                    <TextInput
-                        style={styles.textInput}
-                        value={input}
-                        onChangeText={setInput}
-                        placeholder="Write a message..."
-                        placeholderTextColor="#bbb"
-                        onSubmitEditing={send}
-                        returnKeyType="send"
-                    />
-                    <TouchableOpacity style={styles.sendBtn} onPress={send} activeOpacity={0.7}>
-                        <Ionicons name="send" size={20} color={ACCENT} />
-                    </TouchableOpacity>
-                </View>
+                {isResolved ? (
+                    <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10, justifyContent: 'center' }]}>
+                        <Text style={{ color: '#888', fontStyle: 'italic', marginVertical: 10 }}>This ticket has been resolved.</Text>
+                    </View>
+                ) : (
+                    <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
+                        <TouchableOpacity style={styles.plusBtn} activeOpacity={0.7}>
+                            <Ionicons name="add" size={24} color={ACCENT} />
+                        </TouchableOpacity>
+                        <TextInput
+                            style={styles.textInput}
+                            value={input}
+                            onChangeText={setInput}
+                            placeholder="Write a message..."
+                            placeholderTextColor="#bbb"
+                            onSubmitEditing={send}
+                            returnKeyType="send"
+                        />
+                        <TouchableOpacity style={styles.sendBtn} onPress={send} activeOpacity={0.7}>
+                            <Ionicons name="send" size={20} color={ACCENT} />
+                        </TouchableOpacity>
+                    </View>
+                )}
             </KeyboardAvoidingView>
         </View>
     );
