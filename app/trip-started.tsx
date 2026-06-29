@@ -24,18 +24,7 @@ import { SocketContext } from '../context/SocketContext';
 
 const ACCENT = '#FF5F00';
 
-// Drop off location — Freedom Park, Cabanatuan
-const DROPOFF_COORDS = {
-    latitude: 15.4748,
-    longitude: 120.9673,
-};
 
-const INITIAL_REGION = {
-    latitude: 15.4800,
-    longitude: 120.9640,
-    latitudeDelta: 0.025,
-    longitudeDelta: 0.025,
-};
 
 const NAVIGATE_REGION = {
     latitude: 15.472,
@@ -56,18 +45,51 @@ export default function TripStartedScreen() {
         dropoff?: string;
         fare?: string;
         dropoffFull?: string;
+        rideId?: string;
+        dropoffLat?: string;
+        dropoffLng?: string;
     }>();
 
-    const passengerName = params.name || 'Justine Kyle Castro';
+    const passengerName = params.name || 'Passenger';
     const fare = params.fare || '70.00';
     const rideId = params.rideId;
+    const dropoffFull = params.dropoffFull || 'Drop off location';
+    const pickupFull = params.pickupFull || 'Pickup location';
+
+    const dLat = params.dropoffLat ? parseFloat(params.dropoffLat) : 15.4748;
+    const dLng = params.dropoffLng ? parseFloat(params.dropoffLng) : 120.9673;
+
+    const DROPOFF_COORDS = {
+        latitude: dLat,
+        longitude: dLng,
+    };
+
+    const INITIAL_REGION = {
+        latitude: dLat,
+        longitude: dLng,
+        latitudeDelta: 0.025,
+        longitudeDelta: 0.025,
+    };
+
     const { socket, isConnected } = useContext(SocketContext);
-    const dropoffFull =
-        params.dropoffFull ||
-        'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
 
     const mapRef = useRef<any>(null);
     const [driverLocation, setDriverLocation] = React.useState(INITIAL_REGION);
+
+    // Listen for ride cancellation
+    React.useEffect(() => {
+        if (!socket || !isConnected || !rideId) return;
+
+        socket.emit('join_ride', { rideId });
+
+        socket.on('ride_cancelled', (data: any) => {
+            Alert.alert('Ride Cancelled', data?.reason || 'The passenger has cancelled the ride.');
+            router.replace('/(tabs)');
+        });
+        return () => {
+            socket.off('ride_cancelled');
+        };
+    }, [socket, isConnected, rideId, router]);
 
     // Simulate driver movement and emit location updates
     React.useEffect(() => {
@@ -185,7 +207,7 @@ export default function TripStartedScreen() {
                 showsMyLocationButton={false}
             >
                 <Marker coordinate={DROPOFF_COORDS} title="Drop off Location" />
-                <Marker coordinate={driverLocation} title="You">
+                <Marker coordinate={driverLocation} title="You" tracksViewChanges={false}>
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#007AFF', borderWidth: 2, borderColor: '#FFF' }} />
                 </Marker>
             </MapView>
@@ -266,13 +288,15 @@ export default function TripStartedScreen() {
                             router.push({
                                 pathname: '/drop-off',
                                 params: {
+                                    rideId,
                                     name: passengerName,
                                     fare: fare,
                                     dropoffFull: dropoffFull,
-                                    pickupFull: 'SM City Cabanatuan\nBarangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija',
+                                    dropoffLat: dLat,
+                                    dropoffLng: dLng,
+                                    pickupFull: pickupFull,
                                     duration: '7 minutes',
                                     distance: '3.6 Km',
-                                    rideId: rideId,
                                 },
                             })
                         }

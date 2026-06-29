@@ -20,21 +20,14 @@ import Animated, {
 import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthContext } from '@/context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
+import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 // SM City Cabanatuan coordinates
 const PICKUP_COORDS = {
     latitude: 15.4865,
     longitude: 120.9601,
-};
-
-const INITIAL_REGION = {
-    latitude: 15.4865,
-    longitude: 120.9601,
-    latitudeDelta: 0.02,
-    longitudeDelta: 0.02,
 };
 
 const NAVIGATE_REGION = {
@@ -61,6 +54,11 @@ export default function PickupPassengerScreen() {
         fare?: string;
         pickupFull?: string;
         dropoffFull?: string;
+        pickupLat?: string;
+        pickupLng?: string;
+        dropoffLat?: string;
+        dropoffLng?: string;
+        recoveredState?: string;
     }>();
 
     const rideId = params.rideId;
@@ -70,9 +68,53 @@ export default function PickupPassengerScreen() {
         params.pickupFull ||
         'Pickup Location';
 
+    const pLat = params.pickupLat ? parseFloat(params.pickupLat) : 15.4865;
+    const pLng = params.pickupLng ? parseFloat(params.pickupLng) : 120.9601;
+
+    const PICKUP_COORDS = {
+        latitude: pLat,
+        longitude: pLng,
+    };
+
+    const INITIAL_REGION = {
+        latitude: pLat,
+        longitude: pLng,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+    };
+
     const mapRef = useRef<any>(null);
-    const [arrived, setArrived] = useState(false);
+    const [arrived, setArrived] = useState(params.recoveredState === 'arrived');
     const [driverLocation, setDriverLocation] = useState(INITIAL_REGION);
+
+    // If recovered state is arrived, make sure the sheet is expanded after mount
+    React.useEffect(() => {
+        if (params.recoveredState === 'arrived') {
+            snapToExpanded();
+        }
+    }, [params.recoveredState]);
+
+    // Join ride room and listen for status updates
+    React.useEffect(() => {
+        if (!socket || !isConnected || !rideId) return;
+        
+        socket.emit('join_ride', { rideId });
+
+        socket.on('ride_cancelled', (data: any) => {
+            Alert.alert('Ride Cancelled', data?.reason || 'The passenger has cancelled the ride.');
+            router.back();
+        });
+        socket.on('ride_status_update', (data: any) => {
+            if (data?.status === 'arrived_pickup') {
+                setArrived(true);
+                snapToExpanded();
+            }
+        });
+        return () => {
+            socket.off('ride_cancelled');
+            socket.off('ride_status_update');
+        };
+    }, [socket, isConnected, rideId, router]);
 
     // Simulate driver movement and emit location updates
     React.useEffect(() => {
@@ -149,37 +191,43 @@ export default function PickupPassengerScreen() {
     const updateRideStatus = async (status: string) => {
         if (!rideId) return true; // mock mode
         try {
-            const res = await fetch(`${API_URL}/driver/ride/${rideId}/status`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify({ status }),
+            await api.patch(`/driver/ride/${rideId}/status`, {
+                status,
+                latitude: driverLocation.latitude,
+                longitude: driverLocation.longitude
             });
-            return res.ok;
-        } catch (err) {
+            return true;
+        } catch (err: any) {
             console.error(err);
+            if (err.response?.status === 400 && err.response?.data?.code === 'GPS_TOO_FAR') {
+                Alert.alert('Too Far', err.response.data.message);
+                return 'too_far';
+            }
             return false;
         }
     };
 
     const handleActionPress = async () => {
         if (!arrived) {
-            const ok = await updateRideStatus('arrived_pickup');
-            if (!ok) return Alert.alert('Error', 'Failed to update status.');
+            const result = await updateRideStatus('arrived_pickup');
+            if (result === 'too_far') return;
+            if (!result) return Alert.alert('Error', 'Failed to update status.');
             setArrived(true);
             snapToExpanded();
         } else {
-            const ok = await updateRideStatus('trip_started');
-            if (!ok) return Alert.alert('Error', 'Failed to update status.');
+            const result = await updateRideStatus('trip_started');
+            if (result === 'too_far') return;
+            if (!result) return Alert.alert('Error', 'Failed to update status.');
             router.push({
                 pathname: '/trip-started',
                 params: {
                     rideId,
                     name: passengerName,
                     fare: fare,
+                    pickupFull: params.pickupFull,
                     dropoffFull: params.dropoffFull,
+                    dropoffLat: params.dropoffLat,
+                    dropoffLng: params.dropoffLng,
                 },
             });
         }
@@ -195,7 +243,7 @@ export default function PickupPassengerScreen() {
                 showsMyLocationButton={false}
             >
                 <Marker coordinate={PICKUP_COORDS} title="Pickup Location" />
-                <Marker coordinate={driverLocation} title="You">
+                <Marker coordinate={driverLocation} title="You" tracksViewChanges={false}>
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#007AFF', borderWidth: 2, borderColor: '#FFF' }} />
                 </Marker>
             </MapView>

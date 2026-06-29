@@ -31,7 +31,7 @@ export default function RequestModal({ ride, onAccept, onDecline, timeLeft }: Re
       toValue: height,
       duration: 300,
       useNativeDriver: true,
-    }).start(() => onDecline(ride._id));
+    }).start(() => onDecline(ride.rideId || ride._id));
   };
 
   const handleAccept = () => {
@@ -39,7 +39,7 @@ export default function RequestModal({ ride, onAccept, onDecline, timeLeft }: Re
       toValue: height,
       duration: 300,
       useNativeDriver: true,
-    }).start(() => onAccept(ride._id));
+    }).start(() => onAccept(ride.rideId || ride._id));
   };
 
   if (!ride) return null;

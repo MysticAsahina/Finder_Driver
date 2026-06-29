@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,11 +9,10 @@ import * as Location from 'expo-location';
 import { AuthContext } from '@/context/AuthContext';
 import { SocketContext } from '@/context/SocketContext';
 import RequestModal from '@/components/RequestModal';
-import { useRouter } from 'expo-router';
+import api from '@/utils/axios';
 
 const ACCENT = Colors.light.tint;
 const ONLINE_GREEN = '#22c55e';
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(false);
@@ -33,7 +33,7 @@ export default function HomeScreen() {
 
   // Timer for ride request
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (incomingRide && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
@@ -72,22 +72,17 @@ export default function HomeScreen() {
     }, 2000);
   };
 
-  const updateStatusOnBackend = async (online: boolean, lat?: number, lng?: number) => {
+  const updateStatusOnBackend = async (online: boolean, lat?: number, lng?: number): Promise<boolean> => {
     try {
-      await fetch(`${API_URL}/driver/status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          isOnline: online,
-          latitude: lat,
-          longitude: lng,
-        }),
+      await api.post('/driver/status', {
+        isOnline: online,
+        latitude: lat,
+        longitude: lng,
       });
+      return true;
     } catch (err) {
       console.error('Failed to update status', err);
+      return false;
     }
   };
 
@@ -107,7 +102,11 @@ export default function HomeScreen() {
       longitudeDelta: 0.01,
     });
 
-    await updateStatusOnBackend(true, loc.coords.latitude, loc.coords.longitude);
+    const success = await updateStatusOnBackend(true, loc.coords.latitude, loc.coords.longitude);
+    if (!success) {
+      Alert.alert('Error', 'Could not communicate with the server.');
+      return false;
+    }
 
     locationSub.current = await Location.watchPositionAsync(
       {
@@ -146,6 +145,66 @@ export default function HomeScreen() {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const fetchStatusAndRide = async () => {
+        if (!accessToken) return;
+        try {
+          // Fetch driver status
+          const statusRes = await api.get('/driver/status');
+          const data = statusRes.data;
+          setIsOnline(data.isOnline);
+          if (data.isOnline && !locationSub.current) {
+             startTracking();
+          }
+
+          // Fetch current ride
+          const rideRes = await api.get('/driver/ride/current');
+          const rideData = rideRes.data;
+          if (rideData.ride) {
+              const ride = rideData.ride;
+              
+              const pickupLat = ride?.pickup?.coordinates?.coordinates[1] ?? 15.4865;
+              const pickupLng = ride?.pickup?.coordinates?.coordinates[0] ?? 120.9601;
+              const dropoffLat = ride?.dropoff?.coordinates?.coordinates[1] ?? 15.475;
+              const dropoffLng = ride?.dropoff?.coordinates?.coordinates[0] ?? 120.958;
+              const passengerName = ride.passengerId ? `${ride.passengerId.firstName} ${ride.passengerId.lastName}` : 'Passenger';
+              
+              const params = {
+                rideId: ride._id,
+                fare: ride.fare,
+                pickupFull: ride.pickup?.address,
+                dropoffFull: ride.dropoff?.address,
+                pickupLat: pickupLat.toString(),
+                pickupLng: pickupLng.toString(),
+                dropoffLat: dropoffLat.toString(),
+                dropoffLng: dropoffLng.toString(),
+                name: passengerName,
+              };
+
+              if (ride.status === 'driver_assigned' || ride.status === 'arrived_pickup') {
+                router.push({
+                  pathname: '/pickup-passenger',
+                  params: {
+                    ...params,
+                    recoveredState: ride.status === 'arrived_pickup' ? 'arrived' : undefined
+                  }
+                });
+              } else if (ride.status === 'trip_started') {
+                router.push({
+                  pathname: '/trip-started',
+                  params
+                });
+              }
+            }
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      fetchStatusAndRide();
+    }, [accessToken])
+  );
+
   useEffect(() => {
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -155,18 +214,38 @@ export default function HomeScreen() {
 
   const handleAcceptRide = async (rideId: string) => {
     try {
-      const res = await fetch(`${API_URL}/driver/ride/${rideId}/accept`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-      });
-      if (!res.ok) {
+      const res = await api.post(`/driver/ride/${rideId}/accept`);
+      const data = res.data;
+      const passengerName = data.ride?.passengerId 
+          ? `${data.ride.passengerId.firstName} ${data.ride.passengerId.lastName}` 
+          : 'Passenger';
+
+        const pickupLat = incomingRide?.pickup?.coordinates?.coordinates[1] ?? 15.4865;
+        const pickupLng = incomingRide?.pickup?.coordinates?.coordinates[0] ?? 120.9601;
+        const dropoffLat = incomingRide?.dropoff?.coordinates?.coordinates[1] ?? 15.475;
+        const dropoffLng = incomingRide?.dropoff?.coordinates?.coordinates[0] ?? 120.958;
+        
+        // Go to trip details
+        router.push({ 
+          pathname: '/pickup-passenger', 
+          params: { 
+            rideId,
+            name: passengerName,
+            fare: incomingRide?.fare,
+            pickupFull: incomingRide?.pickup?.address,
+            dropoffFull: incomingRide?.dropoff?.address,
+            pickupLat,
+            pickupLng,
+            dropoffLat,
+            dropoffLng
+          } 
+        });
+    } catch (err: any) {
+      if (err.response?.status === 400 || err.response?.status === 404) {
         Alert.alert('Error', 'Ride no longer available.');
       } else {
-        // Go to trip details
-        router.push({ pathname: '/pickup-passenger', params: { rideId } });
+        Alert.alert('Error', 'Failed to accept ride.');
       }
-    } catch (err) {
-      Alert.alert('Error', 'Failed to accept ride.');
     } finally {
       setIncomingRide(null);
     }
@@ -175,10 +254,7 @@ export default function HomeScreen() {
   const handleDeclineRide = async (rideId: string) => {
     setIncomingRide(null);
     try {
-      await fetch(`${API_URL}/driver/ride/${rideId}/decline`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-      });
+      await api.post(`/driver/ride/${rideId}/decline`);
     } catch (err) {
       console.error('Failed to decline ride', err);
     }

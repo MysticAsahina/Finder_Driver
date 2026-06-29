@@ -11,23 +11,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AuthContext } from '@/context/AuthContext';
+import { SocketContext } from '@/context/SocketContext';
+import * as Location from 'expo-location';
+import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
-
-function generateRefId() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) result += chars[Math.floor(Math.random() * chars.length)];
-    return `Trip - ${result}`;
-}
-
-// Generate once per screen render
-const BOOKING_REF = generateRefId();
 
 export default function DropOffScreen() {
     const router = useRouter();
     const { accessToken } = useContext(AuthContext);
+    const { socket, isConnected } = useContext(SocketContext);
     const params = useLocalSearchParams<{
         rideId?: string;
         name?: string;
@@ -39,7 +32,8 @@ export default function DropOffScreen() {
     }>();
 
     const rideId = params.rideId;
-    const passengerName = params.name || 'Justine Kyle Castro';
+    const passengerName = params.name || 'Passenger';
+    const BOOKING_REF = rideId ? `Trip - ${rideId.slice(-6).toUpperCase()}` : 'Trip - 000000';
     const fare = params.fare || '70.00';
     const duration = params.duration || '7 minutes';
     const distance = params.distance || '3.6 Km';
@@ -50,6 +44,21 @@ export default function DropOffScreen() {
         params.dropoffFull ||
         'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
 
+    React.useEffect(() => {
+        if (!socket || !isConnected || !rideId) return;
+
+        socket.emit('join_ride', { rideId });
+
+        socket.on('ride_status_update', (data: any) => {
+            if (data?.status === 'completed') {
+                router.replace('/(tabs)');
+            }
+        });
+        return () => {
+            socket.off('ride_status_update');
+        };
+    }, [socket, isConnected, rideId, router]);
+
     const handleConfirmDropOff = async () => {
         if (!rideId) {
             router.replace('/(tabs)');
@@ -57,22 +66,24 @@ export default function DropOffScreen() {
         }
 
         try {
-            const res = await fetch(`${API_URL}/driver/ride/${rideId}/status`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify({ status: 'completed' }),
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+            
+            await api.patch(`/driver/ride/${rideId}/status`, {
+                status: 'completed',
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude
             });
-            if (res.ok) {
-                router.replace('/(tabs)');
-            } else {
-                Alert.alert('Error', 'Failed to update ride status.');
-            }
-        } catch (err) {
+
+            router.replace('/(tabs)');
+        } catch (err: any) {
             console.error(err);
-            Alert.alert('Error', 'Network error.');
+            if (err.response?.status === 400 && err.response?.data?.code === 'GPS_TOO_FAR') {
+                Alert.alert('Too Far', err.response.data.message);
+            } else if (err.response?.data?.message) {
+                Alert.alert('Error', err.response.data.message);
+            } else {
+                Alert.alert('Error', 'Network error.');
+            }
         }
     };
 

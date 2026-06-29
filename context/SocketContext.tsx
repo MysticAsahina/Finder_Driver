@@ -31,6 +31,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const newSocket = io(API_URL, {
       auth: { token: accessToken },
       autoConnect: true,
+      transports: ['websocket'],
     });
 
     newSocket.on('connect', () => {
