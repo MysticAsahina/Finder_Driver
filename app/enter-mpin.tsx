@@ -10,21 +10,56 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
+import { AuthContext } from '@/context/AuthContext';
+import { useContext } from 'react';
 
 const ACCENT = Colors.light.tint;
 const PIN_LENGTH = 4;
 
 export default function EnterMpinScreen() {
     const router = useRouter();
+    const { accessToken } = useContext(AuthContext);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [pin, setPin] = useState('');
-    const inputRef = useRef<TextInput>(null);
+    const inputRef = React.useRef<import('react-native').TextInput>(null);
+
+    const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+    const verifyMpin = async (mpin: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(`${API_URL}/auth/verify-mpin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ mpin }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.message || 'Invalid MPIN');
+                setPin('');
+                return;
+            }
+            router.replace('/(tabs)');
+        } catch (err) {
+            setError('Network error');
+            setPin('');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleInput = (val: string) => {
+        if (loading) return;
         const digits = val.replace(/\D/g, '').slice(0, PIN_LENGTH);
         setPin(digits);
-        // As soon as any digit is entered → go to home
-        if (digits.length > 0) {
-            router.replace('/(tabs)');
+        
+        if (digits.length === PIN_LENGTH) {
+            verifyMpin(digits);
         }
     };
 

@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { AuthContext } from '@/context/AuthContext';
 
 const ACCENT = '#FF5F00';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 function generateRefId() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -24,7 +27,9 @@ const BOOKING_REF = generateRefId();
 
 export default function DropOffScreen() {
     const router = useRouter();
+    const { accessToken } = useContext(AuthContext);
     const params = useLocalSearchParams<{
+        rideId?: string;
         name?: string;
         fare?: string;
         pickupFull?: string;
@@ -33,6 +38,7 @@ export default function DropOffScreen() {
         distance?: string;
     }>();
 
+    const rideId = params.rideId;
     const passengerName = params.name || 'Justine Kyle Castro';
     const fare = params.fare || '70.00';
     const duration = params.duration || '7 minutes';
@@ -43,6 +49,32 @@ export default function DropOffScreen() {
     const dropoffFull =
         params.dropoffFull ||
         'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
+
+    const handleConfirmDropOff = async () => {
+        if (!rideId) {
+            router.replace('/(tabs)');
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/driver/ride/${rideId}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ status: 'completed' }),
+            });
+            if (res.ok) {
+                router.replace('/(tabs)');
+            } else {
+                Alert.alert('Error', 'Failed to update ride status.');
+            }
+        } catch (err) {
+            console.error(err);
+            Alert.alert('Error', 'Network error.');
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -117,7 +149,7 @@ export default function DropOffScreen() {
                 <TouchableOpacity
                     style={styles.confirmBtn}
                     activeOpacity={0.85}
-                    onPress={() => router.replace('/(tabs)')}
+                    onPress={handleConfirmDropOff}
                 >
                     <Text style={styles.confirmText}>Confirm Drop off</Text>
                 </TouchableOpacity>

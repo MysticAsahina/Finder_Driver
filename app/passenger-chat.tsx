@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '@/constants/theme';
+import { SocketContext } from '../context/SocketContext';
 
 const ACCENT = '#FF5F00';
 
@@ -23,16 +24,7 @@ interface Message {
     time: string;
 }
 
-const PASSENGER_REPLIES = [
-    'Are you on your way na po?',
-    'How far po kayo from the pickup?',
-    'Can you wait for me for a few minutes?',
-    'I have one companion, is that okay?',
-    "I'm at the main entrance po, can you see me?",
-    'How long until you arrive?',
-    'Can we make a quick stop along the way?',
-    'Is there an extra charge for additional passengers?',
-];
+
 
 function getTime() {
     const now = new Date();
@@ -43,19 +35,32 @@ export default function PassengerChatScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
-    const params = useLocalSearchParams<{ name?: string }>();
+    const params = useLocalSearchParams<{ name?: string, rideId?: string }>();
     const passengerName = params.name || 'Passenger';
+    const { socket, isConnected } = useContext(SocketContext);
 
     const [inputText, setInputText] = useState('');
-    const [replyIndex, setReplyIndex] = useState(0);
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            text: `Hi Kuya, I booked a ride po. Are you available?`,
-            isUser: false,
-            time: getTime(),
-        },
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
+
+    useEffect(() => {
+        if (socket && isConnected) {
+            socket.on('receive_ride_message', (msg) => {
+                const newMsg: Message = {
+                    id: msg.id,
+                    text: msg.text,
+                    isUser: msg.from === 'driver',
+                    time: msg.time
+                };
+                setMessages(prev => {
+                    if (prev.find(m => m.id === newMsg.id)) return prev;
+                    return [...prev, newMsg];
+                });
+            });
+        }
+        return () => {
+            socket?.off('receive_ride_message');
+        };
+    }, [socket, isConnected]);
 
     const sendMessage = () => {
         if (!inputText.trim()) return;
@@ -70,19 +75,9 @@ export default function PassengerChatScreen() {
         setMessages((prev) => [...prev, userMsg]);
         setInputText('');
 
-        const replyText = PASSENGER_REPLIES[replyIndex % PASSENGER_REPLIES.length];
-        setReplyIndex((prev) => prev + 1);
-
-        setTimeout(() => {
-            const passengerMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                text: replyText,
-                isUser: false,
-                time: getTime(),
-            };
-            setMessages((prev) => [...prev, passengerMsg]);
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-        }, 1200);
+        if (socket && isConnected && params.rideId) {
+            socket.emit('send_ride_message', { rideId: params.rideId, message: userMsg });
+        }
 
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     };

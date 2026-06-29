@@ -6,14 +6,16 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/context/AuthContext';
+import { SocketProvider } from '@/context/SocketContext';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
     <AuthProvider>
-    <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <SocketProvider>
+        <SafeAreaProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack initialRouteName="index">
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="register" options={{ headerShown: false }} />
@@ -163,8 +165,9 @@ export default function RootLayout() {
           />
         </Stack>
         <StatusBar style="auto" />
-      </ThemeProvider>
-    </SafeAreaProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </SocketProvider>
     </AuthProvider>
   );
 }

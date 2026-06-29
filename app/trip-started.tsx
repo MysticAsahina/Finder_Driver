@@ -20,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthContext } from '../context/AuthContext';
+import { SocketContext } from '../context/SocketContext';
 
 const ACCENT = '#FF5F00';
 
@@ -59,11 +60,31 @@ export default function TripStartedScreen() {
 
     const passengerName = params.name || 'Justine Kyle Castro';
     const fare = params.fare || '70.00';
+    const rideId = params.rideId;
+    const { socket, isConnected } = useContext(SocketContext);
     const dropoffFull =
         params.dropoffFull ||
         'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
 
     const mapRef = useRef<any>(null);
+    const [driverLocation, setDriverLocation] = React.useState(INITIAL_REGION);
+
+    // Simulate driver movement and emit location updates
+    React.useEffect(() => {
+        if (!rideId || !socket || !isConnected) return;
+        const interval = setInterval(() => {
+            setDriverLocation(prev => {
+                const newLoc = {
+                    ...prev,
+                    latitude: prev.latitude + 0.0001,
+                    longitude: prev.longitude + 0.0001
+                };
+                socket.emit('driver_location_update', { rideId, location: newLoc });
+                return newLoc;
+            });
+        }, 5000); // update every 5 seconds
+        return () => clearInterval(interval);
+    }, [rideId, socket, isConnected]);
 
     const sheetHeight = useSharedValue(SHEET_EXPANDED_HEIGHT);
     const dragStart = useSharedValue(0);
@@ -163,7 +184,10 @@ export default function TripStartedScreen() {
                 showsUserLocation
                 showsMyLocationButton={false}
             >
-                <Marker coordinate={DROPOFF_COORDS} title="Drop Off" />
+                <Marker coordinate={DROPOFF_COORDS} title="Drop off Location" />
+                <Marker coordinate={driverLocation} title="You">
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#007AFF', borderWidth: 2, borderColor: '#FFF' }} />
+                </Marker>
             </MapView>
 
             {/* Floating One Tap Emergency Button */}
@@ -248,6 +272,7 @@ export default function TripStartedScreen() {
                                     pickupFull: 'SM City Cabanatuan\nBarangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija',
                                     duration: '7 minutes',
                                     distance: '3.6 Km',
+                                    rideId: rideId,
                                 },
                             })
                         }

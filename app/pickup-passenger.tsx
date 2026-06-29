@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useContext } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     StyleSheet,
     Image,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,8 +18,11 @@ import Animated, {
     runOnJS,
 } from 'react-native-reanimated';
 import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AuthContext } from '@/context/AuthContext';
+import { SocketContext } from '../context/SocketContext';
 
 const ACCENT = '#FF5F00';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 // SM City Cabanatuan coordinates
 const PICKUP_COORDS = {
@@ -47,7 +51,10 @@ const SHEET_COLLAPSED_HEIGHT = 260;
 export default function PickupPassengerScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { accessToken } = useContext(AuthContext);
+    const { socket, isConnected } = useContext(SocketContext);
     const params = useLocalSearchParams<{
+        rideId?: string;
         name?: string;
         pickup?: string;
         dropoff?: string;
@@ -56,14 +63,33 @@ export default function PickupPassengerScreen() {
         dropoffFull?: string;
     }>();
 
-    const passengerName = params.name || 'Justine Kyle Castro';
+    const rideId = params.rideId;
+    const passengerName = params.name || 'Passenger';
     const fare = params.fare || '70.00';
     const pickupFull =
         params.pickupFull ||
-        'SM City Cabanatuan\nBarangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
+        'Pickup Location';
 
     const mapRef = useRef<any>(null);
     const [arrived, setArrived] = useState(false);
+    const [driverLocation, setDriverLocation] = useState(INITIAL_REGION);
+
+    // Simulate driver movement and emit location updates
+    React.useEffect(() => {
+        if (!rideId || !socket || !isConnected) return;
+        const interval = setInterval(() => {
+            setDriverLocation(prev => {
+                const newLoc = {
+                    ...prev,
+                    latitude: prev.latitude + 0.0001,
+                    longitude: prev.longitude + 0.0001
+                };
+                socket.emit('driver_location_update', { rideId, location: newLoc });
+                return newLoc;
+            });
+        }, 5000); // update every 5 seconds
+        return () => clearInterval(interval);
+    }, [rideId, socket, isConnected]);
 
     // Animated sheet height
     const sheetHeight = useSharedValue(SHEET_EXPANDED_HEIGHT);
@@ -97,10 +123,8 @@ export default function PickupPassengerScreen() {
         const midPoint = (SHEET_EXPANDED_HEIGHT + SHEET_COLLAPSED_HEIGHT) / 2;
 
         if (velocity > 500 || currentHeight < midPoint) {
-            // Snap down
             runOnJS(snapToCollapsed)();
         } else {
-            // Snap up
             runOnJS(snapToExpanded)();
         }
     };
@@ -122,6 +146,45 @@ export default function PickupPassengerScreen() {
         snapToCollapsed();
     };
 
+    const updateRideStatus = async (status: string) => {
+        if (!rideId) return true; // mock mode
+        try {
+            const res = await fetch(`${API_URL}/driver/ride/${rideId}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ status }),
+            });
+            return res.ok;
+        } catch (err) {
+            console.error(err);
+            return false;
+        }
+    };
+
+    const handleActionPress = async () => {
+        if (!arrived) {
+            const ok = await updateRideStatus('arrived_pickup');
+            if (!ok) return Alert.alert('Error', 'Failed to update status.');
+            setArrived(true);
+            snapToExpanded();
+        } else {
+            const ok = await updateRideStatus('trip_started');
+            if (!ok) return Alert.alert('Error', 'Failed to update status.');
+            router.push({
+                pathname: '/trip-started',
+                params: {
+                    rideId,
+                    name: passengerName,
+                    fare: fare,
+                    dropoffFull: params.dropoffFull,
+                },
+            });
+        }
+    };
+
     return (
         <GestureHandlerRootView style={styles.container}>
             <MapView
@@ -132,6 +195,9 @@ export default function PickupPassengerScreen() {
                 showsMyLocationButton={false}
             >
                 <Marker coordinate={PICKUP_COORDS} title="Pickup Location" />
+                <Marker coordinate={driverLocation} title="You">
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#007AFF', borderWidth: 2, borderColor: '#FFF' }} />
+                </Marker>
             </MapView>
 
             {/* BOTTOM SHEET */}
@@ -186,7 +252,7 @@ export default function PickupPassengerScreen() {
                         <TouchableOpacity
                             style={styles.actionBtn}
                             onPress={() =>
-                                router.push({ pathname: '/passenger-chat', params: { name: passengerName } })
+                                router.push({ pathname: '/passenger-chat', params: { name: passengerName, rideId: rideId } })
                             }
                             activeOpacity={0.7}
                         >
@@ -224,22 +290,7 @@ export default function PickupPassengerScreen() {
                     <TouchableOpacity
                         style={arrived ? styles.pickupBtn : styles.arrivedBtn}
                         activeOpacity={0.85}
-                        onPress={() => {
-                            if (!arrived) {
-                                setArrived(true);
-                                snapToExpanded();
-                            } else {
-                                router.push({
-                                    pathname: '/trip-started',
-                                    params: {
-                                        name: passengerName,
-                                        fare: fare,
-                                        dropoffFull: params.dropoffFull ||
-                                            'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija',
-                                    },
-                                });
-                            }
-                        }}
+                        onPress={handleActionPress}
                     >
                         <Text style={arrived ? styles.pickupText : styles.arrivedText}>
                             {arrived ? 'PICK UP' : 'ARRIVED'}

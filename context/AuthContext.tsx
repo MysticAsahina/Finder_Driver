@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     restoreSession();
+    loadEmergencyContact();
   }, []);
 
   async function restoreSession() {
@@ -144,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         await SecureStore.deleteItemAsync("emergencyContact");
       }
-      setEmergencyContact(contact);
+      setEmergencyContactState(contact);
     } catch (err) {
       console.error("Failed to save emergency contact:", err);
     }
