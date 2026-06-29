@@ -12,9 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import api from '@/utils/axios';
 
 const ACCENT      = Colors.light.tint;
-const API_URL     = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const MAX_NAME    = 50;
 
 function validateFirstName(v: string): string | null {
@@ -58,27 +58,17 @@ export default function DriverRegistrationScreen() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/driver-register/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName:    firstName.trim(),
-          lastName:     lastName.trim(),
-          mobileNumber: '0' + mobileNumber,
-        }),
+      const res = await api.post('/driver-register/send-otp', {
+        firstName:    firstName.trim(),
+        lastName:     lastName.trim(),
+        mobileNumber: '0' + mobileNumber,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || 'Something went wrong. Please try again.');
-        return;
-      }
-
+      const data = res.data;
       setDriverRegToken(data.driverRegToken);
       router.push('/otp');
-    } catch {
-      setError('Unable to reach the server. Please check your connection.');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Unable to reach the server. Please check your connection.');
     } finally {
       setLoading(false);
     }

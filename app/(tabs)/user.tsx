@@ -5,9 +5,9 @@ import * as SecureStore from 'expo-secure-store';
 import React, { useContext } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const OPTIONS = [
     { icon: 'headset-outline' as const, label: 'Help Centre' },
@@ -37,11 +37,7 @@ export default function UserScreen() {
                     onPress: async () => {
                         const refreshToken = await SecureStore.getItemAsync('refreshToken');
                         if (refreshToken) {
-                            await fetch(`${API_URL}/auth/logout`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ refreshToken }),
-                            }).catch(() => { }); // non-fatal
+                            await api.post('/auth/logout', { refreshToken }).catch(() => { }); // non-fatal
                         }
                         await SecureStore.deleteItemAsync('refreshToken');
                         setAccessToken(null);

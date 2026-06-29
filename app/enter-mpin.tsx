@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
 import { useContext } from 'react';
+import api from '@/utils/axios';
 
 const ACCENT = Colors.light.tint;
 const PIN_LENGTH = 4;
@@ -24,29 +25,14 @@ export default function EnterMpinScreen() {
     const [pin, setPin] = useState('');
     const inputRef = React.useRef<import('react-native').TextInput>(null);
 
-    const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
-
     const verifyMpin = async (mpin: string) => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_URL}/auth/verify-mpin`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify({ mpin }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                setError(data.message || 'Invalid MPIN');
-                setPin('');
-                return;
-            }
+            await api.post('/auth/verify-mpin', { mpin });
             router.replace('/(tabs)');
-        } catch (err) {
-            setError('Network error');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Invalid MPIN');
             setPin('');
         } finally {
             setLoading(false);

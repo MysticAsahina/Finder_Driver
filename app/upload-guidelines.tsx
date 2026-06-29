@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import api from '@/utils/axios';
 
 const GREEN = '#22c55e';
 const RED = '#e53935';
@@ -386,20 +387,11 @@ async function uploadToCloudinary(
   token: string,
 ): Promise<{ secure_url: string; public_id: string }> {
   // 1. Get signature from backend
-  const sigRes = await fetch(`${API_URL}/driver-register/cloudinary-signature`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+  const sigRes = await api.post('/driver-register/cloudinary-signature', {}, {
+    headers: { Authorization: `Bearer ${token}` }
   });
 
-  if (!sigRes.ok) {
-    const err = await sigRes.json();
-    throw new Error(err.message || 'Failed to get upload signature.');
-  }
-
-  const { signature, timestamp, folder, tags, cloudName, apiKey } = await sigRes.json();
+  const { signature, timestamp, folder, tags, cloudName, apiKey } = sigRes.data;
 
   // 2. Upload directly to Cloudinary
   const formData = new FormData();

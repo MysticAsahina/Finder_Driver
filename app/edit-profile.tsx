@@ -16,9 +16,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import { AuthContext } from '@/context/AuthContext';
+import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 // ── Validation helpers ───────────────────────────────────────────────────────
 function validateName(value: string, field: string): string | null {
@@ -171,26 +171,14 @@ export default function EditProfileScreen() {
                 body[editingField] = fieldValue.trim();
             }
 
-            const res = await fetch(`${API_URL}/driver/edit-profile`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify(body),
-            });
-
-            const data = await res.json();
-            if (!res.ok) {
-                setError(data.message || 'Update failed.');
-                return;
-            }
+            const res = await api.patch('/driver/edit-profile', body);
+            const data = res.data;
 
             // Update context so the whole app reflects the change
             if (data.user) setUser(data.user);
             setEditingField(null);
-        } catch {
-            setError('Unable to reach the server.');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Unable to reach the server.');
         } finally {
             setSaving(false);
         }

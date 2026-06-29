@@ -22,9 +22,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import api from '@/utils/axios';
 
 const ACCENT     = Colors.light.tint;
-const API_URL    = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const OTP_LENGTH = 6;
 
 export default function OtpScreen() {
@@ -67,19 +67,13 @@ export default function OtpScreen() {
           return;
         }
 
-        const res = await fetch(`${API_URL}/auth/verify-otp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ code: otp.join('') }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setError(data.message || 'Verification failed. Please try again.');
+        try {
+          const res = await api.post('/auth/verify-otp', { code: otp.join('') }, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const data = res.data;
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Verification failed. Please try again.');
           setOtp(Array(OTP_LENGTH).fill(''));
           inputRefs.current[0]?.focus();
           return;
@@ -100,29 +94,22 @@ export default function OtpScreen() {
           return;
         }
 
-        const res = await fetch(`${API_URL}/driver-register/verify-otp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ code: otp.join('') }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setError(data.message || 'Verification failed. Please try again.');
+        try {
+          const res = await api.post('/driver-register/verify-otp', { code: otp.join('') }, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const data = res.data;
+          setDriverRegToken(data.driverRegToken);
+          router.push('/driving-license');
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Verification failed. Please try again.');
           setOtp(Array(OTP_LENGTH).fill(''));
           inputRefs.current[0]?.focus();
           return;
         }
-
-        setDriverRegToken(data.driverRegToken);
-        router.push('/driving-license');
       }
 
-    } catch {
+    } catch (err: any) {
       setError('Unable to reach the server. Please check your connection.');
     } finally {
       setLoading(false);
@@ -143,16 +130,13 @@ export default function OtpScreen() {
           return;
         }
 
-        const res = await fetch(`${API_URL}/auth/resend-otp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        const data = await res.json();
-        if (!res.ok) setError(data.message || 'Failed to resend OTP.');
+        try {
+          await api.post('/auth/resend-otp', {}, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Failed to resend OTP.');
+        }
 
       } else {
         // --------------- Registration resend ---------------
@@ -162,24 +146,19 @@ export default function OtpScreen() {
           return;
         }
 
-        const res = await fetch(`${API_URL}/driver-register/resend-otp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.message || 'Failed to resend OTP.');
+        try {
+          const res = await api.post('/driver-register/resend-otp', {}, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const data = res.data;
+          setDriverRegToken(data.driverRegToken);
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Failed to resend OTP.');
           return;
         }
-
-        setDriverRegToken(data.driverRegToken);
       }
 
-    } catch {
+    } catch (err: any) {
       setError('Failed to resend OTP.');
     }
   };

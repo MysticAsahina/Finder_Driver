@@ -7,10 +7,11 @@ import {
     FlatList, KeyboardAvoidingView, Platform,
     StyleSheet,
     Text, TextInput, TouchableOpacity,
-    View, AppState,
+    View, AppState, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
+import api from '@/utils/axios';
 
 const ACCENT = Colors.light.tint;
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -36,45 +37,43 @@ export default function SupportChatScreen() {
     const socketRef = useRef<Socket | null>(null);
     const listRef = useRef<FlatList>(null);
 
+    const ensureTicket = async () => {
+        try {
+            if (!ticketId) {
+                const ticketsRes = await api.get('/support/tickets');
+                const ticketsData = ticketsRes.data;
+                const openTicket = ticketsData.tickets?.find(
+                    (t: any) => t.status === 'open' || t.status === 'in_progress'
+                );
+
+                let activeTicketId = null;
+                if (openTicket) {
+                    activeTicketId = openTicket._id;
+                } else {
+                    const createRes = await api.post('/support/tickets', { subject: 'General Support' });
+                    activeTicketId = createRes.data.ticket._id;
+                }
+                setTicketId(activeTicketId);
+                return activeTicketId;
+            }
+            return ticketId;
+        } catch (err) {
+            console.error('Failed to ensure ticket', err);
+            return null;
+        }
+    };
+
     useEffect(() => {
         if (!accessToken) return;
 
         let socket: Socket;
 
         async function initialize() {
-            let activeTicketId = ticketId;
+            const activeTicketId = await ensureTicket();
+            if (!activeTicketId) return;
 
-            if (!activeTicketId) {
-                const ticketsRes = await fetch(`${API_URL}/support/tickets`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
-                });
-                const ticketsData = await ticketsRes.json();
-                const openTicket = ticketsData.tickets?.find(
-                    (t: any) => t.status === 'open'
-                );
-
-                if (openTicket) {
-                    activeTicketId = openTicket._id;
-                } else {
-                    const createRes = await fetch(`${API_URL}/support/tickets`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${accessToken}`,
-                        },
-                        body: JSON.stringify({ subject: 'General Support' }),
-                    });
-                    const createData = await createRes.json();
-                    activeTicketId = createData.ticket._id;
-                }
-                setTicketId(activeTicketId);
-            }
-
-            const msgsRes = await fetch(
-                `${API_URL}/support/tickets/${activeTicketId}/messages`,
-                { headers: { 'Authorization': `Bearer ${accessToken}` } }
-            );
-            const msgsData = await msgsRes.json();
+            const msgsRes = await api.get(`/support/tickets/${activeTicketId}/messages`);
+            const msgsData = msgsRes.data;
             setMsgs(msgsData.messages || []);
             setIsResolved(msgsData.status === 'resolved');
 
@@ -89,13 +88,11 @@ export default function SupportChatScreen() {
 
             socket.on('receive_message', (newMsg: Message) => {
                 setMsgs(prev => {
-                    // Avoid exact duplicates
                     if (prev.some(m => m._id === newMsg._id)) return prev;
-                    // Avoid flicker: if this is a broadcast of our own optimistic message, ignore it
                     const isOwnOptimistic = prev.some(m => 
                         m.body === newMsg.body && 
                         m.senderRole === newMsg.senderRole && 
-                        m._id.length < 24 // Optimistic IDs are 13 chars
+                        m._id.length < 24
                     );
                     if (isOwnOptimistic) return prev;
                     return [...prev, newMsg];
@@ -135,34 +132,27 @@ export default function SupportChatScreen() {
 
     const send = async () => {
         const text = input.trim();
-        if (!text || !ticketId || sending) return;
+        if (!text || sending) return;
+
+        const activeTicketId = await ensureTicket();
+        if (!activeTicketId) return;
 
         setSending(true);
         setInput('');
 
         const optimisticMsg: Message = {
             _id: Date.now().toString(),
-            ticketId,
+            ticketId: activeTicketId,
             senderId: '',
-            senderRole: 'driver',    // ← This is the key difference from passenger
+            senderRole: 'driver',
             body: text,
             createdAt: new Date().toISOString(),
         };
         setMsgs(prev => [...prev, optimisticMsg]);
 
         try {
-            const res = await fetch(
-                `${API_URL}/support/tickets/${ticketId}/messages`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`,
-                    },
-                    body: JSON.stringify({ body: text }),
-                }
-            );
-            const data = await res.json();
+            const res = await api.post(`/support/tickets/${activeTicketId}/messages`, { body: text });
+            const data = res.data;
             setMsgs(prev => {
                 if (prev.some(m => m._id === data.message._id)) {
                     return prev.filter(m => m._id !== optimisticMsg._id);
@@ -171,6 +161,7 @@ export default function SupportChatScreen() {
             });
         } catch (err) {
             console.error('Failed to send message:', err);
+            Alert.alert('Error', 'Failed to send message');
             setMsgs(prev => prev.filter(m => m._id !== optimisticMsg._id));
         } finally {
             setSending(false);

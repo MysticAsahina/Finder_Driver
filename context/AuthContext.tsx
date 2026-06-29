@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { createContext, ReactNode, useEffect, useState } from "react";
+import api, { setAxiosAccessToken } from "../utils/axios";
 
 // LOCAL
 
@@ -76,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (res.status === 401) {
           await SecureStore.deleteItemAsync("refreshToken");
           setAccessToken(null);
+          setAxiosAccessToken(null);
           setUser(null);
         }
 
@@ -83,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setAccessToken(data.accessToken);
+      setAxiosAccessToken(data.accessToken);
       setUser(data.user);
       registerPushToken(data.accessToken);
 
@@ -114,14 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         projectId: require('expo-constants').default.expoConfig?.extra?.eas?.projectId,
       });
 
-      await fetch(`${API_URL}/support/push-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ pushToken: pushTokenData.data }),
-      });
+      // use api to send token
+      await api.post('/support/push-token', { pushToken: pushTokenData.data });
     } catch (err) {
       console.error('Failed to register push token:', err);
     }

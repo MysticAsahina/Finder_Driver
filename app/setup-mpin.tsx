@@ -16,9 +16,9 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import api from '@/utils/axios';
 
 const ACCENT     = Colors.light.tint;
-const API_URL    = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const PIN_LENGTH = 4;
 
 export default function SetupMpinScreen() {
@@ -69,13 +69,7 @@ export default function SetupMpinScreen() {
         const store = getDriverRegStore();
 
         try {
-          const res = await fetch(`${API_URL}/driver-register/submit`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
+          await api.post('/driver-register/submit', {
               licenseImgFront:  store.licenseImgFront,
               licenseImgBack:   store.licenseImgBack,
               licenseNumber:    store.licenseNumber,
@@ -92,21 +86,18 @@ export default function SetupMpinScreen() {
               confirmPassword:  store.confirmPassword,
               mpin:             digits,
               cloudinaryPublicIds: store.cloudinaryPublicIds,
-            }),
+          }, {
+              headers: { 'Authorization': `Bearer ${token}` }
           });
-
-          const data = await res.json();
-
-          if (!res.ok) {
-            Alert.alert('Submission failed', data.message || 'Something went wrong. Please try again.');
-            setLoading(false);
-            return;
-          }
 
           clearDriverRegistration();
           router.replace('/waiting-approval');
-        } catch {
-          Alert.alert('Error', 'Unable to reach the server. Please check your connection.');
+        } catch (err: any) {
+          if (err.response?.data?.message) {
+            Alert.alert('Submission failed', err.response.data.message);
+          } else {
+            Alert.alert('Error', 'Unable to reach the server. Please check your connection.');
+          }
           setLoading(false);
         }
       }

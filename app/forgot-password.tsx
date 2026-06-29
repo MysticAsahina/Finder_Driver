@@ -13,8 +13,8 @@ import {
     Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import api from '@/utils/axios';
 
-const API_URL      = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128;
 
@@ -42,17 +42,12 @@ export default function ForgotPasswordScreen() {
         }
         setLoading(true);
         try {
-            const res  = await fetch(`${API_URL}/auth/forgot-password`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ mobileNumber: mobile.trim() }),
-            });
-            const data = await res.json();
-            if (!res.ok) return setError(data.message || 'Something went wrong.');
+            const res  = await api.post('/auth/forgot-password', { mobileNumber: mobile.trim() });
+            const data = res.data;
             setToken(data.token ?? '');
             setStep('otp');
-        } catch {
-            setError('Unable to reach the server. Please check your connection.');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Unable to reach the server. Please check your connection.');
         } finally {
             setLoading(false);
         }
@@ -64,20 +59,14 @@ export default function ForgotPasswordScreen() {
         if (!otp.trim()) return setError('Please enter the OTP sent to your number.');
         setLoading(true);
         try {
-            const res  = await fetch(`${API_URL}/auth/forgot-password/verify-otp`, {
-                method:  'POST',
-                headers: {
-                    'Content-Type':  'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ code: otp.trim() }),
+            const res  = await api.post('/auth/forgot-password/verify-otp', { code: otp.trim() }, {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-            const data = await res.json();
-            if (!res.ok) return setError(data.message || 'Invalid OTP. Please try again.');
+            const data = res.data;
             setToken(data.token ?? token);
             setStep('newPassword');
-        } catch {
-            setError('Unable to reach the server. Please check your connection.');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -92,21 +81,14 @@ export default function ForgotPasswordScreen() {
         if (newPassword !== confirmPassword)     return setError('Passwords do not match.');
         setLoading(true);
         try {
-            const res  = await fetch(`${API_URL}/auth/forgot-password/reset`, {
-                method:  'POST',
-                headers: {
-                    'Content-Type':  'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ password: newPassword, confirmPassword }),
+            await api.post('/auth/forgot-password/reset', { password: newPassword, confirmPassword }, {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-            const data = await res.json();
-            if (!res.ok) return setError(data.message || 'Something went wrong.');
             Alert.alert('Success', 'Your password has been reset.', [
                 { text: 'Login', onPress: () => router.replace('/login') },
             ]);
-        } catch {
-            setError('Unable to reach the server. Please check your connection.');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Unable to reach the server. Please check your connection.');
         } finally {
             setLoading(false);
         }

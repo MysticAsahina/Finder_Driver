@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
+import api from '@/utils/axios';
 
-const API_URL      = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const MAX_PASSWORD = 128;
 
 function validateMobile(v: string): string | null {
@@ -89,29 +89,19 @@ export default function LoginScreen() {
         setLoading(true);
 
         try {
-            const res = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    mobileNumber: mobile.trim(),
-                    password:     password.trim(),
-                    role:         'driver',
-                    rememberMe,
-                }),
+            const res = await api.post('/auth/login', {
+                mobileNumber: mobile.trim(),
+                password:     password.trim(),
+                role:         'driver',
+                rememberMe,
             });
 
-            const data = await res.json();
-
-            if (!res.ok) {
-                setError(data.message || 'Something went wrong. Please try again.');
-                return;
-            }
-
+            const data = res.data;
             setPendingToken(data.pendingToken);
             router.push({ pathname: '/otp', params: { flow: 'login' } });
 
-        } catch {
-            setError('Unable to reach the server. Please check your connection.');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Unable to reach the server. Please check your connection.');
         } finally {
             setLoading(false);
         }
