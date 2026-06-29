@@ -1,4 +1,4 @@
-{
+module.exports = {
   "expo": {
     "name": "driver",
     "slug": "driver",
@@ -21,7 +21,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.monochroma.driver",
-      "googleServicesFile": "./google-services.json",
+      "googleServicesFile": process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyCCoKh4svWYYcpfvW-vEKyaKOH5h7IWKbY"
