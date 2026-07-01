@@ -54,7 +54,15 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         // Skip refresh logic for login/otp endpoints
-        if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/verify-otp') || originalRequest.url?.includes('/auth/refresh')) {
+        const url = originalRequest.url || '';
+        if (
+            url.includes('/auth/login') || 
+            url.includes('/auth/verify-otp') || 
+            url.includes('/auth/resend-otp') || 
+            url.includes('/auth/refresh') ||
+            url.includes('/driver-register/verify-otp') ||
+            url.includes('/driver-register/resend-otp')
+        ) {
             return Promise.reject(error);
         }
 

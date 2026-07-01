@@ -67,17 +67,10 @@ export default function OtpScreen() {
           return;
         }
 
-        try {
-          const res = await api.post('/auth/verify-otp', { code: otp.join('') }, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
-          const data = res.data;
-        } catch (err: any) {
-          setError(err.response?.data?.message || 'Verification failed. Please try again.');
-          setOtp(Array(OTP_LENGTH).fill(''));
-          inputRefs.current[0]?.focus();
-          return;
-        }
+        const res = await api.post('/auth/verify-otp', { code: otp.join('') }, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const data = res.data;
 
         // Store tokens and update auth context
         setAccessToken(data.accessToken);
@@ -94,23 +87,18 @@ export default function OtpScreen() {
           return;
         }
 
-        try {
-          const res = await api.post('/driver-register/verify-otp', { code: otp.join('') }, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
-          const data = res.data;
-          setDriverRegToken(data.driverRegToken);
-          router.push('/driving-license');
-        } catch (err: any) {
-          setError(err.response?.data?.message || 'Verification failed. Please try again.');
-          setOtp(Array(OTP_LENGTH).fill(''));
-          inputRefs.current[0]?.focus();
-          return;
-        }
+        const res = await api.post('/driver-register/verify-otp', { code: otp.join('') }, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const data = res.data;
+        setDriverRegToken(data.driverRegToken);
+        router.push('/driving-license');
       }
 
     } catch (err: any) {
-      setError('Unable to reach the server. Please check your connection.');
+      setError(err.response?.data?.message || 'Unable to reach the server. Please check your connection.');
+      setOtp(Array(OTP_LENGTH).fill(''));
+      inputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
