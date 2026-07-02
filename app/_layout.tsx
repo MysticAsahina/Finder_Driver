@@ -152,6 +152,10 @@ export default function RootLayout() {
             options={{ headerShown: false, animation: 'slide_from_right' }}
           />
           <Stack.Screen
+            name="emergency-contact"
+            options={{ headerShown: false, animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
             name="setup-mpin"
             options={{ headerShown: false, animation: 'slide_from_right' }}
           />

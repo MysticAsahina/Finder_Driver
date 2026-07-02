@@ -29,7 +29,7 @@ const OTP_LENGTH = 6;
 
 export default function OtpScreen() {
   const router  = useRouter();
-  const { setAccessToken, setUser } = useContext(AuthContext);
+  const { setAccessToken, setUser, setEmergencyContactState } = useContext(AuthContext);
   const { flow } = useLocalSearchParams<{ flow?: string }>();
   const isLogin = flow === 'login';
 
@@ -75,6 +75,9 @@ export default function OtpScreen() {
         // Store tokens and update auth context
         setAccessToken(data.accessToken);
         setUser(data.user);
+        if (data.user?.emergencyContact) {
+          setEmergencyContactState(data.user.emergencyContact);
+        }
         await SecureStore.setItemAsync('refreshToken', data.refreshToken);
         clearAuth();
         router.replace('/(tabs)');

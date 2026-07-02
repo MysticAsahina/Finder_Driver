@@ -20,6 +20,7 @@ type AuthContextType = {
   setUser: React.Dispatch<React.SetStateAction<any>>;
   emergencyContact: EmergencyContact | null;
   setEmergencyContact: (contact: EmergencyContact | null) => Promise<void>;
+  setEmergencyContactState: React.Dispatch<React.SetStateAction<EmergencyContact | null>>;
 };
 
 export const AuthContext = createContext<AuthContextType>({
@@ -30,6 +31,7 @@ export const AuthContext = createContext<AuthContextType>({
   setUser: () => { },
   emergencyContact: null,
   setEmergencyContact: async () => { },
+  setEmergencyContactState: () => { },
 });
 
 const DEFAULT_USER = {
@@ -50,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     restoreSession();
-    loadEmergencyContact();
   }, []);
 
   async function restoreSession() {
@@ -87,6 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(data.accessToken);
       setAxiosAccessToken(data.accessToken);
       setUser(data.user);
+      if (data.user?.emergencyContact) {
+        setEmergencyContactState(data.user.emergencyContact);
+      }
       registerPushToken(data.accessToken);
 
       // Store the rotated refresh token
@@ -124,27 +128,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function loadEmergencyContact() {
-    try {
-      const contactStr = await SecureStore.getItemAsync("emergencyContact");
-      if (contactStr) {
-        setEmergencyContact(JSON.parse(contactStr));
-      }
-    } catch (err) {
-      console.error("Failed to load emergency contact:", err);
-    }
-  }
 
   async function setEmergencyContact(contact: EmergencyContact | null) {
     try {
-      if (contact) {
-        await SecureStore.setItemAsync("emergencyContact", JSON.stringify(contact));
-      } else {
-        await SecureStore.deleteItemAsync("emergencyContact");
-      }
+      await api.patch("/emergency-contact", contact || { firstName: null, lastName: null, mobileNumber: null });
       setEmergencyContactState(contact);
     } catch (err) {
-      console.error("Failed to save emergency contact:", err);
+      console.error("Failed to save emergency contact to API:", err);
     }
   }
 
@@ -155,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser,
         emergencyContact,
         setEmergencyContact,
+        setEmergencyContactState,
         loading,
         accessToken,
         setAccessToken,

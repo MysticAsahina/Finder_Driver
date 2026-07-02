@@ -12,6 +12,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 
+// ─── Validators ───
+function validateFirstName(name: string): string | null {
+    if (!name || name.trim().length === 0) return 'First name is required.';
+    const regex = /^[A-Za-z\s]+$/;
+    if (!regex.test(name)) return 'First name can only contain letters and spaces.';
+    if (name.trim().length > 50) return 'First name is too long.';
+    return null;
+}
+
+function validateLastName(name: string): string | null {
+    if (!name || name.trim().length === 0) return 'Last name is required.';
+    const regex = /^[A-Za-z\s]+$/;
+    if (!regex.test(name)) return 'Last name can only contain letters and spaces.';
+    if (name.trim().length > 50) return 'Last name is too long.';
+    return null;
+}
+
+function validateMobile(mobile: string): string | null {
+    if (!mobile || mobile.trim().length === 0) return 'Mobile number is required.';
+    const regex = /^09\d{9}$/;
+    if (!regex.test(mobile)) return 'Enter a valid 11-digit mobile number starting with 09.';
+    return null;
+}
+
 export default function EmergencyContactScreen() {
     const router = useRouter();
     const { emergencyContact, setEmergencyContact } = useContext(AuthContext);
@@ -23,6 +47,9 @@ export default function EmergencyContactScreen() {
     const [origFirstName, setOrigFirstName] = useState('');
     const [origLastName, setOrigLastName] = useState('');
     const [origMobileNumber, setOrigMobileNumber] = useState('');
+
+    const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (emergencyContact) {
@@ -43,9 +70,21 @@ export default function EmergencyContactScreen() {
         lastName !== origLastName ||
         mobileNumber !== origMobileNumber;
 
-    const confirmSave = () => {
-        if (!firstName.trim() || !lastName.trim() || !mobileNumber.trim()) {
-            Alert.alert('Incomplete details', 'Please fill in all fields.');
+    const confirmSave = async () => {
+        if (isSaving) return;
+        setFormErrors({});
+        
+        const fNameErr = validateFirstName(firstName);
+        const lNameErr = validateLastName(lastName);
+        const mobileErr = validateMobile(mobileNumber);
+
+        const newErrors: Record<string, string> = {};
+        if (fNameErr) newErrors.firstName = fNameErr;
+        if (lNameErr) newErrors.lastName = lNameErr;
+        if (mobileErr) newErrors.mobileNumber = mobileErr;
+
+        if (Object.keys(newErrors).length > 0) {
+            setFormErrors(newErrors);
             return;
         }
 
@@ -57,16 +96,27 @@ export default function EmergencyContactScreen() {
                 {
                     text: 'Save',
                     onPress: async () => {
-                        const contact = {
-                            firstName: firstName.trim(),
-                            lastName: lastName.trim(),
-                            mobileNumber: mobileNumber.trim(),
-                        };
-                        await setEmergencyContact(contact);
-                        setOrigFirstName(contact.firstName);
-                        setOrigLastName(contact.lastName);
-                        setOrigMobileNumber(contact.mobileNumber);
-                        Alert.alert('Saved', 'Emergency contact saved successfully.');
+                        setIsSaving(true);
+                        try {
+                            const contact = {
+                                firstName: firstName.trim(),
+                                lastName: lastName.trim(),
+                                mobileNumber: mobileNumber.trim(),
+                            };
+                            await setEmergencyContact(contact);
+                            setOrigFirstName(contact.firstName);
+                            setOrigLastName(contact.lastName);
+                            setOrigMobileNumber(contact.mobileNumber);
+                            Alert.alert('Saved', 'Emergency contact saved successfully.');
+                        } catch (err: any) {
+                            if (err.response?.status === 429) {
+                                Alert.alert('Too Many Requests', 'Please wait a moment before trying again.');
+                            } else {
+                                Alert.alert('Error', err.response?.data?.message || 'Failed to save emergency contact.');
+                            }
+                        } finally {
+                            setIsSaving(false);
+                        }
                     },
                 },
             ]
@@ -77,6 +127,7 @@ export default function EmergencyContactScreen() {
         setFirstName(origFirstName);
         setLastName(origLastName);
         setMobileNumber(origMobileNumber);
+        setFormErrors({});
     };
 
     return (
@@ -107,35 +158,39 @@ export default function EmergencyContactScreen() {
                     {/* First Name */}
                     <Text style={s.inputLabel}>First Name</Text>
                     <TextInput
-                        style={s.input}
+                        style={[s.input, formErrors.firstName && s.inputError]}
                         value={firstName}
-                        onChangeText={setFirstName}
+                        onChangeText={(t) => { setFirstName(t); setFormErrors(prev => ({...prev, firstName: ''})); }}
                         placeholder="Enter first name"
                         placeholderTextColor="#bbb"
                         autoCapitalize="words"
                     />
+                    {formErrors.firstName ? <Text style={s.errorText}>{formErrors.firstName}</Text> : null}
 
                     {/* Last Name */}
                     <Text style={s.inputLabel}>Last Name</Text>
                     <TextInput
-                        style={s.input}
+                        style={[s.input, formErrors.lastName && s.inputError]}
                         value={lastName}
-                        onChangeText={setLastName}
+                        onChangeText={(t) => { setLastName(t); setFormErrors(prev => ({...prev, lastName: ''})); }}
                         placeholder="Enter last name"
                         placeholderTextColor="#bbb"
                         autoCapitalize="words"
                     />
+                    {formErrors.lastName ? <Text style={s.errorText}>{formErrors.lastName}</Text> : null}
 
                     {/* Mobile Number */}
                     <Text style={s.inputLabel}>Mobile Number</Text>
                     <TextInput
-                        style={s.input}
+                        style={[s.input, formErrors.mobileNumber && s.inputError]}
                         value={mobileNumber}
-                        onChangeText={setMobileNumber}
-                        placeholder="Enter mobile number"
+                        onChangeText={(t) => { setMobileNumber(t); setFormErrors(prev => ({...prev, mobileNumber: ''})); }}
+                        placeholder="09XXXXXXXXX"
                         placeholderTextColor="#bbb"
                         keyboardType="phone-pad"
+                        maxLength={11}
                     />
+                    {formErrors.mobileNumber ? <Text style={s.errorText}>{formErrors.mobileNumber}</Text> : null}
 
                     {hasChanges && (
                         <View style={s.btnContainer}>
@@ -204,6 +259,17 @@ const s = StyleSheet.create({
         color: '#1a1a1a',
         backgroundColor: '#fafafa',
         marginBottom: 16,
+    },
+    inputError: {
+        borderColor: '#cc2222',
+        borderWidth: 1.5,
+        marginBottom: 4,
+    },
+    errorText: {
+        color: '#cc2222',
+        fontSize: 12,
+        marginBottom: 16,
+        marginLeft: 4,
     },
     btnContainer: {
         flexDirection: 'row',
