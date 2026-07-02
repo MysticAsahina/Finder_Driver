@@ -127,27 +127,7 @@ export default function RootLayout() {
               animation: 'slide_from_right',
             }}
           />
-          <Stack.Screen
-            name="pickup-passenger"
-            options={{
-              headerShown: false,
-              animation: 'slide_from_right',
-            }}
-          />
-          <Stack.Screen
-            name="trip-started"
-            options={{
-              headerShown: false,
-              animation: 'slide_from_right',
-            }}
-          />
-          <Stack.Screen
-            name="drop-off"
-            options={{
-              headerShown: false,
-              animation: 'slide_from_right',
-            }}
-          />
+
           <Stack.Screen
             name="upload-guidelines"
             options={{ headerShown: false, animation: 'slide_from_right' }}

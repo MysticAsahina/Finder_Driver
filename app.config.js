@@ -30,7 +30,7 @@ module.exports = {
       "googleServicesFile": process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCCoKh4svWYYcpfvW-vEKyaKOH5h7IWKbY"
+          "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
         }
       },
       "permissions": [

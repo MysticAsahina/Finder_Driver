@@ -2,6 +2,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import MapViewDirections from 'react-native-maps-directions';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
@@ -14,6 +15,7 @@ import api from '@/utils/axios';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
+    withTiming,
     withSpring,
     runOnJS,
 } from 'react-native-reanimated';
@@ -23,7 +25,7 @@ const ACCENT = Colors.light.tint;
 const ONLINE_GREEN = '#22c55e';
 
 const SHEET_EXPANDED_HEIGHT = 460;
-const SHEET_COLLAPSED_HEIGHT = 260;
+const SHEET_COLLAPSED_HEIGHT = 160;
 
 type RideState = 'idle' | 'pickup' | 'arrived' | 'trip_started' | 'dropoff_summary';
 
@@ -36,6 +38,7 @@ export default function HomeScreen() {
 
   const [rideState, setRideState] = useState<RideState>('idle');
   const [currentRide, setCurrentRide] = useState<any>(null);
+  const [routeDistance, setRouteDistance] = useState<number>(0);
 
   const insets = useSafeAreaInsets();
   const toastOpacity = useRef(new RNAnimated.Value(0)).current;
@@ -52,11 +55,11 @@ export default function HomeScreen() {
   const dragStart = useSharedValue(0);
 
   const snapToExpanded = () => {
-      sheetHeight.value = withSpring(SHEET_EXPANDED_HEIGHT, { damping: 20, stiffness: 200 });
+      sheetHeight.value = withTiming(SHEET_EXPANDED_HEIGHT, { duration: 300 });
   };
 
   const snapToCollapsed = () => {
-      sheetHeight.value = withSpring(SHEET_COLLAPSED_HEIGHT, { damping: 20, stiffness: 200 });
+      sheetHeight.value = withTiming(SHEET_COLLAPSED_HEIGHT, { duration: 300 });
   };
 
   const panGesture = Gesture.Pan()
@@ -106,6 +109,13 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [incomingRide, timeLeft]);
 
+  // Ensure driver joins the ride room whenever connected and has a ride
+  useEffect(() => {
+    if (isConnected && socket && currentRide?._id) {
+      socket.emit('join_ride', { rideId: currentRide._id });
+    }
+  }, [isConnected, socket, currentRide?._id]);
+
   // Listen to Socket events
   useEffect(() => {
     if (!socket || !isConnected) return;
@@ -122,10 +132,11 @@ export default function HomeScreen() {
     });
     
     socket.on('ride_cancelled', (data: any) => {
-        if (rideState !== 'idle' && currentRide?._id === data?.rideId) {
+        if (rideState !== 'idle') {
             Alert.alert('Ride Cancelled', data?.reason || 'The passenger has cancelled the ride.');
             setRideState('idle');
             setCurrentRide(null);
+            snapToCollapsed();
         }
     });
 
@@ -337,13 +348,14 @@ export default function HomeScreen() {
     }
   };
 
-  const updateRideStatus = async (status: string) => {
+  const updateRideStatus = async (status: string, extraData?: any) => {
       if (!currentRide?._id) return true;
       try {
           await api.patch(`/driver/ride/${currentRide._id}/status`, {
               status,
               latitude: location?.coords?.latitude,
-              longitude: location?.coords?.longitude
+              longitude: location?.coords?.longitude,
+              ...extraData
           });
           return true;
       } catch (err: any) {
@@ -370,10 +382,22 @@ export default function HomeScreen() {
           setRideState('trip_started');
           snapToExpanded();
       } else if (rideState === 'trip_started') {
-          const result = await updateRideStatus('completed');
-          if (result === 'too_far') return;
-          if (!result) return Alert.alert('Error', 'Failed to update status.');
-          setRideState('dropoff_summary');
+          Alert.alert(
+              'Drop Off',
+              'Are you sure you want to complete this ride and drop off the passenger?',
+              [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                      text: 'Confirm',
+                      onPress: async () => {
+                          const result = await updateRideStatus('completed', { actualDistanceKm: routeDistance });
+                          if (result === 'too_far') return;
+                          if (!result) return Alert.alert('Error', 'Failed to update status.');
+                          setRideState('dropoff_summary');
+                      }
+                  }
+              ]
+          );
       }
   };
 
@@ -547,6 +571,23 @@ export default function HomeScreen() {
 
         {rideState === 'trip_started' && (
             <Marker coordinate={{ latitude: dLat, longitude: dLng }} title="Drop off Location" />
+        )}
+
+        {location && (rideState === 'pickup' || rideState === 'trip_started') && (
+            <MapViewDirections
+                origin={{ latitude: location.coords.latitude, longitude: location.coords.longitude }}
+                destination={
+                    rideState === 'pickup'
+                        ? { latitude: pLat, longitude: pLng }
+                        : { latitude: dLat, longitude: dLng }
+                }
+                apikey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
+                strokeWidth={4}
+                strokeColor={ACCENT}
+                onReady={result => {
+                    setRouteDistance(result.distance);
+                }}
+            />
         )}
       </MapView>
 
