@@ -19,6 +19,7 @@ interface TripInfo {
     refId: string;
     duration: string;
     distance: string;
+    status: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -75,8 +76,9 @@ export default function ActivityScreen() {
             date: formatDate(r.createdAt),
             fare: r.fare,
             refId: generateRefId(r._id),
-            duration: r.durationMins ? `${r.durationMins} minutes` : '–',
+            duration: r.actualDurationMins ? `${Math.round(r.actualDurationMins * 10) / 10} minutes` : (r.durationMins ? `${Math.round(r.durationMins * 10) / 10} minutes` : '–'),
             distance: r.distanceKm ? `${r.distanceKm.toFixed(1)} Km` : '–',
+            status: r.status || 'unknown'
         };
     };
 
@@ -188,13 +190,13 @@ export default function ActivityScreen() {
                                 <View style={styles.modalDivider} />
 
                                 {/* Info rows */}
-                                {[
+                                {([
                                     ['Passenger', selectedTrip.name],
                                     ['Booking Reference ID', selectedTrip.refId],
-                                    ['Duration', selectedTrip.duration],
+                                    selectedTrip.status !== 'cancelled' ? ['Duration', selectedTrip.duration] : null,
                                     ['Distance', selectedTrip.distance],
                                     ['Trip fare', selectedTrip.fare ? `₱ ${selectedTrip.fare.toFixed(2)}` : '—']
-                                ].map(([k, v]) => (
+                                ].filter(Boolean) as [string, string][]).map(([k, v]) => (
                                     <View key={k} style={styles.infoRow}>
                                         <Text style={styles.infoLabel}>{k}</Text>
                                         <Text style={styles.infoValue}>{v}</Text>

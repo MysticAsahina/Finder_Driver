@@ -1,6 +1,6 @@
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView, AppState } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,6 +39,7 @@ export default function HomeScreen() {
   const [rideState, setRideState] = useState<RideState>('idle');
   const [currentRide, setCurrentRide] = useState<any>(null);
   const [routeDistance, setRouteDistance] = useState<number>(0);
+  const [routeDuration, setRouteDuration] = useState<number>(0);
 
   const insets = useSafeAreaInsets();
   const toastOpacity = useRef(new RNAnimated.Value(0)).current;
@@ -140,12 +141,47 @@ export default function HomeScreen() {
         }
     });
 
+    socket.on('ride_status_update', (data: any) => {
+      if (rideState !== 'idle' && currentRide && data.rideId === currentRide._id) {
+        if (data.status === 'arrived_pickup') {
+          setRideState('arrived');
+          snapToExpanded();
+        } else if (data.status === 'completed') {
+          setRideState('dropoff_summary');
+          snapToExpanded();
+        }
+      }
+    });
+
     return () => {
       socket.off('ride_request');
       socket.off('ride_request_expired');
       socket.off('ride_cancelled');
+      socket.off('ride_status_update');
     };
   }, [socket, isConnected, rideState, currentRide]);
+
+  // Handle AppState changes (returning from background)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        // App returned to foreground, force a socket reconnect to clear any zombie connections
+        if (socket) {
+           socket.disconnect();
+           setTimeout(() => {
+               socket.connect();
+           }, 100);
+        }
+        // Always resync our online status with the backend in case we were disconnected and marked offline
+        if (isOnline && location) {
+           updateStatusOnBackend(true, location.coords.latitude, location.coords.longitude);
+        }
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [socket, isOnline, location]);
 
   // Ride location updates emission
   useEffect(() => {
@@ -351,12 +387,19 @@ export default function HomeScreen() {
   const updateRideStatus = async (status: string, extraData?: any) => {
       if (!currentRide?._id) return true;
       try {
-          await api.patch(`/driver/ride/${currentRide._id}/status`, {
+          const res = await api.patch(`/driver/ride/${currentRide._id}/status`, {
               status,
               latitude: location?.coords?.latitude,
               longitude: location?.coords?.longitude,
               ...extraData
           });
+          if (res.data?.ride) {
+              const updatedRide = res.data.ride;
+              if (currentRide.passengerId && typeof currentRide.passengerId === 'object' && typeof updatedRide.passengerId === 'string') {
+                  updatedRide.passengerId = currentRide.passengerId;
+              }
+              setCurrentRide(updatedRide);
+          }
           return true;
       } catch (err: any) {
           console.error(err);
@@ -390,7 +433,7 @@ export default function HomeScreen() {
                   {
                       text: 'Confirm',
                       onPress: async () => {
-                          const result = await updateRideStatus('completed', { actualDistanceKm: routeDistance });
+                          const result = await updateRideStatus('completed');
                           if (result === 'too_far') return;
                           if (!result) return Alert.alert('Error', 'Failed to update status.');
                           setRideState('dropoff_summary');
@@ -509,6 +552,18 @@ export default function HomeScreen() {
                         <Text style={styles.infoLabel}>Trip fare</Text>
                         <Text style={styles.infoValue}>₱  {fare}</Text>
                     </View>
+                    <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Distance</Text>
+                        <Text style={styles.infoValue}>{routeDistance.toFixed(1)} Km</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Duration</Text>
+                        <Text style={styles.infoValue}>
+                            {currentRide?.actualDurationMins != null 
+                                ? `${currentRide.actualDurationMins} mins` 
+                                : `${Math.round(routeDuration)} mins`}
+                        </Text>
+                    </View>
                 </View>
                 <View style={styles.divider} />
                 <View style={styles.locationBlock}>
@@ -586,6 +641,7 @@ export default function HomeScreen() {
                 strokeColor={ACCENT}
                 onReady={result => {
                     setRouteDistance(result.distance);
+                    setRouteDuration(result.duration);
                 }}
             />
         )}

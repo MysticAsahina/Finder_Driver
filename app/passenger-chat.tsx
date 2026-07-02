@@ -12,8 +12,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Colors } from '@/constants/theme';
 import { SocketContext } from '../context/SocketContext';
+import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
 
@@ -41,6 +41,33 @@ export default function PassengerChatScreen() {
 
     const [inputText, setInputText] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
+    const [status, setStatus] = useState<string>('active');
+
+    useEffect(() => {
+        if (!params.rideId) return;
+
+        const loadMessages = async () => {
+            try {
+                const res = await api.get(`/driver/ride/${params.rideId}/chat`);
+                if (res.data.messages) {
+                    const mapped = res.data.messages.map((m: any) => ({
+                        id: m.id,
+                        text: m.text,
+                        isUser: m.senderRole === 'driver',
+                        time: m.time
+                    }));
+                    setMessages(mapped);
+                }
+            } catch (err: any) {
+                if (err.response?.status === 400) {
+                    setStatus('closed');
+                }
+                console.error("Failed to load messages", err);
+            }
+        };
+
+        loadMessages();
+    }, [params.rideId]);
 
     useEffect(() => {
         if (socket && isConnected) {
@@ -62,24 +89,31 @@ export default function PassengerChatScreen() {
         };
     }, [socket, isConnected]);
 
-    const sendMessage = () => {
-        if (!inputText.trim()) return;
+    const sendMessage = async () => {
+        if (!inputText.trim() || status === 'closed') return;
 
+        const msgId = Date.now().toString();
+        const msgTime = getTime();
         const userMsg: Message = {
-            id: Date.now().toString(),
+            id: msgId,
             text: inputText.trim(),
             isUser: true,
-            time: getTime(),
+            time: msgTime,
         };
 
         setMessages((prev) => [...prev, userMsg]);
         setInputText('');
-
-        if (socket && isConnected && params.rideId) {
-            socket.emit('send_ride_message', { rideId: params.rideId, message: userMsg });
-        }
-
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+
+        try {
+            await api.post(`/driver/ride/${params.rideId}/chat`, { text: userMsg.text, time: msgTime, id: msgId });
+        } catch (err: any) {
+            console.error('Failed to send message:', err);
+            setMessages(prev => prev.filter(m => m.id !== msgId));
+            if (err.response?.status === 400) {
+                setStatus('closed');
+            }
+        }
     };
 
     return (
@@ -175,23 +209,29 @@ export default function PassengerChatScreen() {
                 </ScrollView>
 
                 {/* Input bar */}
-                <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
-                    <TouchableOpacity style={styles.plusBtn} activeOpacity={0.7}>
-                        <Ionicons name="add" size={24} color={ACCENT} />
-                    </TouchableOpacity>
-                    <TextInput
-                        style={styles.textInput}
-                        value={inputText}
-                        onChangeText={setInputText}
-                        placeholder="Write a message..."
-                        placeholderTextColor="#bbb"
-                        onSubmitEditing={sendMessage}
-                        returnKeyType="send"
-                    />
-                    <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} activeOpacity={0.7}>
-                        <Ionicons name="send" size={20} color={ACCENT} />
-                    </TouchableOpacity>
-                </View>
+                {status === 'closed' ? (
+                    <View style={[styles.inputBar, { justifyContent: 'center', paddingVertical: 20 }]}>
+                        <Text style={{ color: '#888', fontStyle: 'italic' }}>Chat is closed for this ride.</Text>
+                    </View>
+                ) : (
+                    <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
+                        <TouchableOpacity style={styles.plusBtn} activeOpacity={0.7}>
+                            <Ionicons name="add" size={24} color={ACCENT} />
+                        </TouchableOpacity>
+                        <TextInput
+                            style={styles.textInput}
+                            value={inputText}
+                            onChangeText={setInputText}
+                            placeholder="Write a message..."
+                            placeholderTextColor="#bbb"
+                            onSubmitEditing={sendMessage}
+                            returnKeyType="send"
+                        />
+                        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} activeOpacity={0.7}>
+                            <Ionicons name="send" size={20} color={ACCENT} />
+                        </TouchableOpacity>
+                    </View>
+                )}
             </KeyboardAvoidingView>
         </View>
     );
