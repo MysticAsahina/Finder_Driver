@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors } from '@/constants/theme';
+import api from '@/utils/axios';
 
 const ACCENT = Colors.light.tint;
 
@@ -10,6 +11,7 @@ type TabKey = 'requests' | 'completed' | 'cancelled';
 
 interface TripInfo {
     id: string;
+    name: string;
     pickup: string;
     dropoff: string;
     date: string;
@@ -19,55 +21,104 @@ interface TripInfo {
     distance: string;
 }
 
-// Sample data
-const requestsData = [
-    {
-        id: '1',
-        name: 'Justine Kyle Castro',
-        pickup: 'SM City Cabanatuan',
-        dropoff: 'Freedom Park, Padre Burgos, Cabanatuan City',
-        fare: 70.0,
-    },
-];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function formatDate(dateStr: string) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+    }).replace(' at ', ', '); 
+}
 
-const completedData: TripInfo[] = [
-    {
-        id: '1',
-        pickup: 'SM City Cabanatuan',
-        dropoff: 'Freedom Park, Padre Burgos, Cabanatuan City',
-        date: 'Sun, 15, Feb, 6:54 PM',
-        fare: 70.0,
-        refId: 'Trip - 8F07A3',
-        duration: '7 minutes',
-        distance: '3.6 Km',
-    },
-];
+function generateRefId(id: string) {
+    return `Trip - ${id.substring(id.length - 6).toUpperCase()}`;
+}
 
-const cancelledData: TripInfo[] = [
-    {
-        id: '1',
-        pickup: 'SM City Cabanatuan',
-        dropoff: 'Freedom Park, Padre Burgos, Cabanatuan City',
-        date: 'Sun, 15, Feb, 4:23 PM',
-        refId: 'Trip - 4B12C9',
-        duration: '—',
-        distance: '—',
-    },
-];
+// ─── Empty state ─────────────────────────────────────────────────────────────
+function EmptyState({ label }: { label: string }) {
+    return (
+        <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>🚕</Text>
+            <Text style={styles.emptyText}>No {label} trips</Text>
+        </View>
+    );
+}
 
 export default function ActivityScreen() {
     const [activeTab, setActiveTab] = useState<TabKey>('requests');
     const [selectedTrip, setSelectedTrip] = useState<TripInfo | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    const [currentTrip, setCurrentTrip] = useState<TripInfo | null>(null);
+    const [completedTrips, setCompletedTrips] = useState<TripInfo[]>([]);
+    const [cancelledTrips, setCancelledTrips] = useState<TripInfo[]>([]);
 
     const tabs: { key: TabKey; label: string }[] = [
-        { key: 'requests', label: 'Requests' },
+        { key: 'requests', label: 'Active Ride' },
         { key: 'completed', label: 'Completed' },
         { key: 'cancelled', label: 'Cancelled' },
     ];
 
+    const mapRideToTrip = (r: any): TripInfo => {
+        const passenger = r.passengerId;
+        const passengerName = passenger ? `${passenger.firstName} ${passenger.lastName}` : 'Passenger';
+        return {
+            id: r._id,
+            name: passengerName,
+            pickup: r.pickup?.address || 'Unknown pickup',
+            dropoff: r.dropoff?.address || 'Unknown dropoff',
+            date: formatDate(r.createdAt),
+            fare: r.fare,
+            refId: generateRefId(r._id),
+            duration: r.durationMins ? `${r.durationMins} minutes` : '–',
+            distance: r.distanceKm ? `${r.distanceKm.toFixed(1)} Km` : '–',
+        };
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
+
+            const fetchData = async () => {
+                setLoading(true);
+                try {
+                    const [currentRes, historyRes] = await Promise.all([
+                        api.get('/driver/ride/current').catch(() => null),
+                        api.get('/driver/ride/history').catch(() => null)
+                    ]);
+
+                    if (!isActive) return;
+
+                    if (currentRes?.data?.ride) {
+                        setCurrentTrip(mapRideToTrip(currentRes.data.ride));
+                    } else {
+                        setCurrentTrip(null);
+                    }
+
+                    if (historyRes?.data?.rides) {
+                        const rides: any[] = historyRes.data.rides;
+                        setCompletedTrips(rides.filter(r => r.status === 'completed').map(mapRideToTrip));
+                        setCancelledTrips(rides.filter(r => r.status === 'cancelled').map(mapRideToTrip));
+                    }
+                } catch (err) {
+                    console.error("Error fetching driver history", err);
+                } finally {
+                    if (isActive) setLoading(false);
+                }
+            };
+
+            fetchData();
+            return () => { isActive = false; };
+        }, [])
+    );
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            {/* Title */}
             <Text style={styles.title}>Activity</Text>
 
             {/* Tabs */}
@@ -79,12 +130,7 @@ export default function ActivityScreen() {
                         onPress={() => setActiveTab(tab.key)}
                         activeOpacity={0.7}
                     >
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === tab.key && styles.activeTabText,
-                            ]}
-                        >
+                        <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
                             {tab.label}
                         </Text>
                     </TouchableOpacity>
@@ -92,19 +138,27 @@ export default function ActivityScreen() {
             </View>
 
             {/* Content */}
-            <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {activeTab === 'requests' && <RequestsList />}
-                {activeTab === 'completed' && (
-                    <CompletedList onSelect={setSelectedTrip} />
-                )}
-                {activeTab === 'cancelled' && (
-                    <CancelledList onSelect={setSelectedTrip} />
-                )}
-            </ScrollView>
+            {loading ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={ACCENT} />
+                </View>
+            ) : (
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {activeTab === 'requests' && (
+                        currentTrip ? <RequestsList item={currentTrip} /> : <EmptyState label="active" />
+                    )}
+                    {activeTab === 'completed' && (
+                        completedTrips.length > 0 ? <CompletedList data={completedTrips} onSelect={setSelectedTrip} /> : <EmptyState label="completed" />
+                    )}
+                    {activeTab === 'cancelled' && (
+                        cancelledTrips.length > 0 ? <CancelledList data={cancelledTrips} onSelect={setSelectedTrip} /> : <EmptyState label="cancelled" />
+                    )}
+                </ScrollView>
+            )}
 
             {/* Trip Details Modal */}
             <Modal
@@ -134,24 +188,18 @@ export default function ActivityScreen() {
                                 <View style={styles.modalDivider} />
 
                                 {/* Info rows */}
-                                <View style={styles.infoRow}>
-                                    <Text style={styles.infoLabel}>Booking Reference ID</Text>
-                                    <Text style={styles.infoValue}>{selectedTrip.refId}</Text>
-                                </View>
-                                <View style={styles.infoRow}>
-                                    <Text style={styles.infoLabel}>Duration</Text>
-                                    <Text style={styles.infoValue}>{selectedTrip.duration}</Text>
-                                </View>
-                                <View style={styles.infoRow}>
-                                    <Text style={styles.infoLabel}>Distance</Text>
-                                    <Text style={styles.infoValue}>{selectedTrip.distance}</Text>
-                                </View>
-                                <View style={styles.infoRow}>
-                                    <Text style={styles.infoLabel}>Trip fare</Text>
-                                    <Text style={styles.infoValue}>
-                                        {selectedTrip.fare ? `₱ ${selectedTrip.fare.toFixed(2)}` : '—'}
-                                    </Text>
-                                </View>
+                                {[
+                                    ['Passenger', selectedTrip.name],
+                                    ['Booking Reference ID', selectedTrip.refId],
+                                    ['Duration', selectedTrip.duration],
+                                    ['Distance', selectedTrip.distance],
+                                    ['Trip fare', selectedTrip.fare ? `₱ ${selectedTrip.fare.toFixed(2)}` : '—']
+                                ].map(([k, v]) => (
+                                    <View key={k} style={styles.infoRow}>
+                                        <Text style={styles.infoLabel}>{k}</Text>
+                                        <Text style={styles.infoValue}>{v}</Text>
+                                    </View>
+                                ))}
 
                                 <View style={styles.modalDivider} />
 
@@ -177,53 +225,40 @@ export default function ActivityScreen() {
 }
 
 /* ── Requests Tab ── */
-function RequestsList() {
+function RequestsList({ item }: { item: TripInfo }) {
     const router = useRouter();
     return (
-        <View>
-            {requestsData.map((item) => (
-                <View key={item.id} style={styles.card}>
-                    <Text style={styles.passengerName}>{item.name}</Text>
-                    <View style={styles.routeContainer}>
-                        <View style={styles.dotLine}>
-                            <View style={styles.dotGreen} />
-                            <View style={styles.dottedLine} />
-                            <View style={styles.dotGreen} />
-                        </View>
-                        <View style={styles.routeTexts}>
-                            <Text style={styles.locationText}>{item.pickup}</Text>
-                            <Text style={styles.locationText}>{item.dropoff}</Text>
-                        </View>
-                    </View>
-                    <Text style={styles.fare}>₱ {item.fare.toFixed(2)}</Text>
-                    <TouchableOpacity
-                        style={styles.viewDetailsBtn}
-                        activeOpacity={0.85}
-                        onPress={() =>
-                            router.push({
-                                pathname: '/trip-details',
-                                params: {
-                                    name: item.name,
-                                    pickup: item.pickup,
-                                    dropoff: item.dropoff,
-                                    fare: item.fare.toFixed(2),
-                                },
-                            })
-                        }
-                    >
-                        <Text style={styles.viewDetailsText}>View Details</Text>
-                    </TouchableOpacity>
+        <View style={styles.card}>
+            <Text style={styles.passengerName}>{item.name}</Text>
+            <View style={styles.routeContainer}>
+                <View style={styles.dotLine}>
+                    <View style={styles.dotGreen} />
+                    <View style={styles.dottedLine} />
+                    <View style={styles.dotGreen} />
                 </View>
-            ))}
+                <View style={styles.routeTexts}>
+                    <Text style={styles.locationText}>{item.pickup}</Text>
+                    <Text style={styles.locationText}>{item.dropoff}</Text>
+                </View>
+            </View>
+            <Text style={styles.fare}>₱ {item.fare?.toFixed(2)}</Text>
+            {/* The actual routing might depend on if the driver has picked up yet, but we'll use a generic trip-details link if needed, or route back to index */}
+            <TouchableOpacity
+                style={styles.viewDetailsBtn}
+                activeOpacity={0.85}
+                onPress={() => router.push('/(tabs)')}
+            >
+                <Text style={styles.viewDetailsText}>View on Map</Text>
+            </TouchableOpacity>
         </View>
     );
 }
 
 /* ── Completed Tab ── */
-function CompletedList({ onSelect }: { onSelect: (trip: TripInfo) => void }) {
+function CompletedList({ data, onSelect }: { data: TripInfo[], onSelect: (trip: TripInfo) => void }) {
     return (
         <View>
-            {completedData.map((item) => (
+            {data.map((item) => (
                 <TouchableOpacity
                     key={item.id}
                     style={styles.card}
@@ -252,10 +287,10 @@ function CompletedList({ onSelect }: { onSelect: (trip: TripInfo) => void }) {
 }
 
 /* ── Cancelled Tab ── */
-function CancelledList({ onSelect }: { onSelect: (trip: TripInfo) => void }) {
+function CancelledList({ data, onSelect }: { data: TripInfo[], onSelect: (trip: TripInfo) => void }) {
     return (
         <View>
-            {cancelledData.map((item) => (
+            {data.map((item) => (
                 <TouchableOpacity
                     key={item.id}
                     style={styles.card}
@@ -471,4 +506,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingTop: 4,
     },
+    empty: { alignItems: 'center', paddingTop: 60 },
+    emptyIcon: { fontSize: 36, marginBottom: 10 },
+    emptyText: { fontSize: 15, color: '#aaa', fontWeight: '500' },
 });
