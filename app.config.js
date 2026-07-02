@@ -9,7 +9,13 @@ module.exports = {
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +32,12 @@ module.exports = {
         "googleMaps": {
           "apiKey": "AIzaSyCCoKh4svWYYcpfvW-vEKyaKOH5h7IWKbY"
         }
-      }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -47,7 +58,13 @@ module.exports = {
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow FINDER to use your location for background tracking during rides."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

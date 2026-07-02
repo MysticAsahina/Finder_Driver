@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/context/AuthContext';
 import { SocketProvider } from '@/context/SocketContext';
+import '@/utils/backgroundLocation';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
