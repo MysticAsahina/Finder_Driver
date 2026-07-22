@@ -391,13 +391,13 @@ export default function PassengerChatScreen() {
 
 function VideoBubble({ mediaUrl, marginBottom }: { mediaUrl: string, marginBottom: number }) {
     const player = useVideoPlayer(mediaUrl, player => {
-        player.loop = true;
+        player.loop = false;
     });
     return (
         <VideoView
             style={{ width: 220, height: 160, borderRadius: 12, marginBottom }}
             player={player}
-            allowsFullscreen
+            fullscreenOptions={{ enable: true }}
             allowsPictureInPicture
         />
     );

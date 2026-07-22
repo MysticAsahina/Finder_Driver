@@ -36,7 +36,9 @@ module.exports = {
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -62,7 +64,8 @@ module.exports = {
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow FINDER to use your location for background tracking during rides."
+          "locationAlwaysAndWhenInUsePermission": "Allow FINDER to use your location for background tracking during rides.",
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       "expo-video",
