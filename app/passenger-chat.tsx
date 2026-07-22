@@ -19,7 +19,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SocketContext } from '../context/SocketContext';
 import api from '@/utils/axios';
 import * as ImagePicker from 'expo-image-picker';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 const ACCENT = '#FF5F00';
 
@@ -167,7 +167,7 @@ export default function PassengerChatScreen() {
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
         try {
-            let finalMediaUrl = undefined;
+            let finalMediaUrl: string | undefined = undefined;
             if (localMediaUrl && localMediaType) {
                 setUploading(true);
                 const sigRes = await api.post('/chat/cloudinary-signature', { mediaType: localMediaType });
@@ -305,12 +305,7 @@ export default function PassengerChatScreen() {
                                     </TouchableOpacity>
                                 )}
                                 {msg.mediaUrl && msg.mediaType === 'video' && (
-                                    <Video 
-                                        source={{ uri: msg.mediaUrl }} 
-                                        style={{ width: 220, height: 160, borderRadius: 12, marginTop: msg.text ? 8 : 0 }} 
-                                        useNativeControls 
-                                        resizeMode={ResizeMode.CONTAIN} 
-                                    />
+                                    <VideoBubble mediaUrl={msg.mediaUrl} marginBottom={msg.text ? 8 : 0} />
                                 )}
                                 {!!msg.text && (
                                     <Text
@@ -391,6 +386,20 @@ export default function PassengerChatScreen() {
                 </View>
             </Modal>
         </View>
+    );
+}
+
+function VideoBubble({ mediaUrl, marginBottom }: { mediaUrl: string, marginBottom: number }) {
+    const player = useVideoPlayer(mediaUrl, player => {
+        player.loop = true;
+    });
+    return (
+        <VideoView
+            style={{ width: 220, height: 160, borderRadius: 12, marginBottom }}
+            player={player}
+            allowsFullscreen
+            allowsPictureInPicture
+        />
     );
 }
 

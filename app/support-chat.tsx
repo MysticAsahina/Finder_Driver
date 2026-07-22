@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import api from '@/utils/axios';
 import * as ImagePicker from 'expo-image-picker';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 const ACCENT = Colors.light.tint;
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -203,7 +203,7 @@ export default function SupportChatScreen() {
         setMsgs(prev => [...prev, optimisticMsg]);
 
         try {
-            let finalMediaUrl = undefined;
+            let finalMediaUrl: string | undefined = undefined;
             if (localMediaUrl && localMediaType) {
                 setUploading(true);
                 const sigRes = await api.post('/chat/cloudinary-signature', { mediaType: localMediaType });
@@ -289,12 +289,7 @@ export default function SupportChatScreen() {
                                     </TouchableOpacity>
                                 )}
                                 {item.mediaUrl && item.mediaType === 'video' && (
-                                    <Video 
-                                        source={{ uri: item.mediaUrl }} 
-                                        style={{ width: 220, height: 160, borderRadius: 12, marginTop: item.body ? 8 : 0 }} 
-                                        useNativeControls 
-                                        resizeMode={ResizeMode.CONTAIN} 
-                                    />
+                                    <VideoBubble mediaUrl={item.mediaUrl} marginBottom={item.body ? 8 : 0} />
                                 )}
                                 {!!item.body && (
                                     <Text style={[styles.messageText, item.senderRole === 'driver' && styles.userMessageText]}>
@@ -387,6 +382,20 @@ export default function SupportChatScreen() {
                 </View>
             </Modal>
         </View>
+    );
+}
+
+function VideoBubble({ mediaUrl, marginBottom }: { mediaUrl: string, marginBottom: number }) {
+    const player = useVideoPlayer(mediaUrl, player => {
+        player.loop = true;
+    });
+    return (
+        <VideoView
+            style={{ width: 220, height: 160, borderRadius: 12, marginBottom }}
+            player={player}
+            allowsFullscreen
+            allowsPictureInPicture
+        />
     );
 }
 

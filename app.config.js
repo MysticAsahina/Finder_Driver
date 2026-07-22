@@ -64,7 +64,9 @@ module.exports = {
         {
           "locationAlwaysAndWhenInUsePermission": "Allow FINDER to use your location for background tracking during rides."
         }
-      ]
+      ],
+      "expo-video",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,
