@@ -1,0 +1,71 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Expo ────────────────────────────────────────────────────────────────────
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+app-example/
+
+# ─── Native build output ─────────────────────────────────────────────────────
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+/ios
+/android
+
+# ─── Environment & secrets ───────────────────────────────────────────────────
+# We comment out .env so that EAS Build uploads it and can use the variables
+# .env
+# .env.*
+!.env.example
+# .env*.local
+google-services.json
+GoogleService-Info.plist
+
+# ─── Metro / cache ───────────────────────────────────────────────────────────
+.metro-health-check*
+.cache/
+
+# ─── Debug logs ──────────────────────────────────────────────────────────────
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# ─── TypeScript ──────────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# ─── Windows ─────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ─── IDE / editor ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.sw?
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+coverage/
+
+# ─── EAS ─────────────────────────────────────────────────────────────────────
+
+# Archives
+archive/
