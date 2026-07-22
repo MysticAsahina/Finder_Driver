@@ -41,6 +41,10 @@ export default function HomeScreen() {
   const [routeDistance, setRouteDistance] = useState<number>(0);
   const [routeDuration, setRouteDuration] = useState<number>(0);
 
+  const [showEarnings, setShowEarnings] = useState(false);
+  const [dailyEarnings, setDailyEarnings] = useState<number | null>(null);
+  const [loadingEarnings, setLoadingEarnings] = useState(false);
+
   const insets = useSafeAreaInsets();
   const toastOpacity = useRef(new RNAnimated.Value(0)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -199,8 +203,27 @@ export default function HomeScreen() {
     setShowToast(true);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => {
-      RNAnimated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => setShowToast(false));
-    }, 2000);
+        RNAnimated.timing(toastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+            setShowToast(false);
+        });
+    }, 3000);
+  };
+
+  const toggleEarnings = async () => {
+      if (showEarnings) {
+          setShowEarnings(false);
+      } else {
+          setShowEarnings(true);
+          setLoadingEarnings(true);
+          try {
+              const res = await api.get('/driver/ride/earnings/daily');
+              setDailyEarnings(res.data.earnings);
+          } catch (err) {
+              console.error(err);
+          } finally {
+              setLoadingEarnings(false);
+          }
+      }
   };
 
   const updateStatusOnBackend = async (online: boolean, lat?: number, lng?: number): Promise<boolean> => {
@@ -647,15 +670,32 @@ export default function HomeScreen() {
         )}
       </MapView>
 
-      {/* Earnings pill */}
+      {/* Earnings pill / bubble */}
       {rideState === 'idle' && (
-        <TouchableOpacity
-            style={[styles.earningsPill, { top: insets.top + 10 }]}
-            activeOpacity={0.85}
-        >
-            <Ionicons name="home" size={16} color="#fff" />
-            <Text style={styles.earningsText}>Earnings</Text>
-        </TouchableOpacity>
+        showEarnings ? (
+            <View style={[styles.earningsBubble, { top: insets.top + 10 }]}>
+                <TouchableOpacity style={styles.earningsCloseBtn} onPress={toggleEarnings} activeOpacity={0.8}>
+                    <Ionicons name="close" size={20} color="#fff" />
+                </TouchableOpacity>
+                <View style={styles.earningsBubbleContent}>
+                    <Text style={styles.earningsBubbleLabel}>Earnings</Text>
+                    {loadingEarnings ? (
+                        <Text style={styles.earningsBubbleAmount}>...</Text>
+                    ) : (
+                        <Text style={styles.earningsBubbleAmount}>₱ {dailyEarnings?.toFixed(2) || '0.00'}</Text>
+                    )}
+                </View>
+            </View>
+        ) : (
+            <TouchableOpacity
+                style={[styles.earningsPill, { top: insets.top + 10 }]}
+                activeOpacity={0.85}
+                onPress={toggleEarnings}
+            >
+                <Ionicons name="briefcase" size={16} color="#fff" />
+                <Text style={styles.earningsText}>Earnings</Text>
+            </TouchableOpacity>
+        )
       )}
 
       {/* Floating One Tap Emergency Button */}
@@ -830,6 +870,26 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4,
   },
   earningsText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  earningsBubble: {
+    position: 'absolute', left: 16, zIndex: 10,
+    flexDirection: 'column', alignItems: 'flex-start',
+  },
+  earningsCloseBtn: {
+    backgroundColor: '#0F262D',
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8, elevation: 4, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4,
+  },
+  earningsBubbleContent: {
+    backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 12,
+    borderRadius: 12, borderWidth: 1, borderColor: '#eee',
+    elevation: 4, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
+    minWidth: 100,
+  },
+  earningsBubbleLabel: { fontSize: 11, color: '#888', marginBottom: 2, fontWeight: '500' },
+  earningsBubbleAmount: { fontSize: 16, fontWeight: '800', color: '#1a1a1a' },
   bottomBar: {
     position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 12,
   },

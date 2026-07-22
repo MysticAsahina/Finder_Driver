@@ -8,12 +8,18 @@ import {
     ScrollView,
     KeyboardAvoidingView,
     Platform,
+    Image,
+    Modal,
+    ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SocketContext } from '../context/SocketContext';
 import api from '@/utils/axios';
+import * as ImagePicker from 'expo-image-picker';
+import { Video, ResizeMode } from 'expo-av';
 
 const ACCENT = '#FF5F00';
 
@@ -22,6 +28,8 @@ interface Message {
     text: string;
     isUser: boolean;
     time: string;
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video';
 }
 
 
@@ -42,6 +50,9 @@ export default function PassengerChatScreen() {
     const [inputText, setInputText] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [status, setStatus] = useState<string>('active');
+    const [pendingMedia, setPendingMedia] = useState<{ uri: string, mediaType: 'image' | 'video', fileName: string } | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     useEffect(() => {
         if (!params.rideId) return;
@@ -54,7 +65,9 @@ export default function PassengerChatScreen() {
                         id: m.id,
                         text: m.text,
                         isUser: m.senderRole === 'driver',
-                        time: m.time
+                        time: m.time,
+                        mediaUrl: m.mediaUrl,
+                        mediaType: m.mediaType
                     }));
                     setMessages(mapped);
                 }
@@ -76,7 +89,9 @@ export default function PassengerChatScreen() {
                     id: msg.id,
                     text: msg.text,
                     isUser: msg.from === 'driver',
-                    time: msg.time
+                    time: msg.time,
+                    mediaUrl: msg.mediaUrl,
+                    mediaType: msg.mediaType
                 };
                 setMessages(prev => {
                     if (prev.find(m => m.id === newMsg.id)) return prev;
@@ -89,30 +104,118 @@ export default function PassengerChatScreen() {
         };
     }, [socket, isConnected]);
 
+    const handlePickMedia = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images', 'videos'],
+                quality: 0.8,
+                videoMaxDuration: 60,
+            });
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                const asset = result.assets[0];
+                const mediaType = asset.type === 'video' ? 'video' : 'image';
+                
+                if (asset.fileSize) {
+                    const sizeMB = asset.fileSize / (1024 * 1024);
+                    if (mediaType === 'image' && sizeMB > 5) {
+                        Alert.alert('Error', 'Image must be smaller than 5MB');
+                        return;
+                    }
+                    if (mediaType === 'video' && sizeMB > 20) {
+                        Alert.alert('Error', 'Video must be smaller than 20MB');
+                        return;
+                    }
+                }
+                
+                let fileName = asset.fileName;
+                if (!fileName) {
+                    const ext = mediaType === 'video' ? 'mp4' : 'jpg';
+                    fileName = `upload.${ext}`;
+                }
+                
+                setPendingMedia({ uri: asset.uri, mediaType, fileName });
+            }
+        } catch (error) {
+            console.error('Error picking media:', error);
+            Alert.alert('Error', 'Failed to pick media');
+        }
+    };
+
     const sendMessage = async () => {
-        if (!inputText.trim() || status === 'closed') return;
+        if ((!inputText.trim() && !pendingMedia) || status === 'closed' || uploading) return;
 
         const msgId = Date.now().toString();
         const msgTime = getTime();
+        
+        let localMediaUrl = pendingMedia?.uri;
+        let localMediaType = pendingMedia?.mediaType;
+        let localFileName = pendingMedia?.fileName;
+
         const userMsg: Message = {
             id: msgId,
             text: inputText.trim(),
             isUser: true,
             time: msgTime,
+            mediaUrl: localMediaUrl,
+            mediaType: localMediaType,
         };
 
         setMessages((prev) => [...prev, userMsg]);
+        const currentText = inputText.trim();
         setInputText('');
+        setPendingMedia(null);
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
         try {
-            await api.post(`/driver/ride/${params.rideId}/chat`, { text: userMsg.text, time: msgTime, id: msgId });
+            let finalMediaUrl = undefined;
+            if (localMediaUrl && localMediaType) {
+                setUploading(true);
+                const sigRes = await api.post('/chat/cloudinary-signature', { mediaType: localMediaType });
+                const signatureData = sigRes.data;
+
+                const formData = new FormData();
+                formData.append('file', { 
+                    uri: localMediaUrl, 
+                    name: localFileName || (localMediaType === 'video' ? 'upload.mp4' : 'upload.jpg'), 
+                    type: localMediaType === 'video' ? 'video/mp4' : 'image/jpeg' 
+                } as any);
+                formData.append('api_key', signatureData.apiKey);
+                formData.append('timestamp', signatureData.timestamp.toString());
+                formData.append('signature', signatureData.signature);
+                formData.append('folder', signatureData.folder);
+                if (signatureData.tags) formData.append('tags', signatureData.tags);
+
+                const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${signatureData.cloudName}/${signatureData.resourceType}/upload`, { 
+                    method: 'POST', 
+                    body: formData 
+                });
+                const uploadData = await uploadRes.json();
+                if (!uploadData.secure_url) {
+                     throw new Error('Upload failed');
+                }
+                finalMediaUrl = uploadData.secure_url;
+            }
+
+            await api.post(`/driver/ride/${params.rideId}/chat`, { 
+                text: currentText || undefined, 
+                time: msgTime, 
+                id: msgId,
+                mediaUrl: finalMediaUrl,
+                mediaType: localMediaType
+            });
+            
+            if (finalMediaUrl) {
+                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, mediaUrl: finalMediaUrl } : m));
+            }
         } catch (err: any) {
             console.error('Failed to send message:', err);
+            Alert.alert('Error', 'Failed to send message');
             setMessages(prev => prev.filter(m => m.id !== msgId));
             if (err.response?.status === 400) {
                 setStatus('closed');
             }
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -192,14 +295,33 @@ export default function PassengerChatScreen() {
                                     msg.isUser ? styles.userBubble : styles.passengerBubble,
                                 ]}
                             >
-                                <Text
-                                    style={[
-                                        styles.messageText,
-                                        msg.isUser && styles.userMessageText,
-                                    ]}
-                                >
-                                    {msg.text}
-                                </Text>
+                                {msg.mediaUrl && msg.mediaType === 'image' && (
+                                    <TouchableOpacity onPress={() => setPreviewImage(msg.mediaUrl as string)}>
+                                        <Image 
+                                            source={{ uri: msg.mediaUrl }} 
+                                            style={{ width: 200, height: 200, borderRadius: 12, marginTop: msg.text ? 8 : 0 }} 
+                                            resizeMode='cover' 
+                                        />
+                                    </TouchableOpacity>
+                                )}
+                                {msg.mediaUrl && msg.mediaType === 'video' && (
+                                    <Video 
+                                        source={{ uri: msg.mediaUrl }} 
+                                        style={{ width: 220, height: 160, borderRadius: 12, marginTop: msg.text ? 8 : 0 }} 
+                                        useNativeControls 
+                                        resizeMode={ResizeMode.CONTAIN} 
+                                    />
+                                )}
+                                {!!msg.text && (
+                                    <Text
+                                        style={[
+                                            styles.messageText,
+                                            msg.isUser && styles.userMessageText,
+                                        ]}
+                                    >
+                                        {msg.text}
+                                    </Text>
+                                )}
                             </View>
                             <Text style={[styles.messageTime, msg.isUser && styles.userTime]}>
                                 {msg.time}
@@ -214,25 +336,60 @@ export default function PassengerChatScreen() {
                         <Text style={{ color: '#888', fontStyle: 'italic' }}>Chat is closed for this ride.</Text>
                     </View>
                 ) : (
-                    <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
-                        <TouchableOpacity style={styles.plusBtn} activeOpacity={0.7}>
-                            <Ionicons name="add" size={24} color={ACCENT} />
-                        </TouchableOpacity>
-                        <TextInput
-                            style={styles.textInput}
-                            value={inputText}
-                            onChangeText={setInputText}
-                            placeholder="Write a message..."
-                            placeholderTextColor="#bbb"
-                            onSubmitEditing={sendMessage}
-                            returnKeyType="send"
-                        />
-                        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} activeOpacity={0.7}>
-                            <Ionicons name="send" size={20} color={ACCENT} />
-                        </TouchableOpacity>
+                    <View style={[styles.inputBarWrapper, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
+                        {pendingMedia && (
+                            <View style={styles.previewContainer}>
+                                {pendingMedia.mediaType === 'image' ? (
+                                    <Image source={{ uri: pendingMedia.uri }} style={styles.previewThumb} />
+                                ) : (
+                                    <View style={styles.previewVideoThumb}>
+                                        <Ionicons name="videocam" size={20} color="#fff" />
+                                        <Text style={styles.previewVideoText} numberOfLines={1}>
+                                            {pendingMedia.fileName}
+                                        </Text>
+                                    </View>
+                                )}
+                                <TouchableOpacity style={styles.removeMediaBtn} onPress={() => setPendingMedia(null)}>
+                                    <Ionicons name="close" size={16} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        <View style={styles.inputBar}>
+                            <TouchableOpacity style={styles.plusBtn} onPress={handlePickMedia} activeOpacity={0.7} disabled={uploading}>
+                                <Ionicons name="add" size={24} color={ACCENT} />
+                            </TouchableOpacity>
+                            <TextInput
+                                style={styles.textInput}
+                                value={inputText}
+                                onChangeText={setInputText}
+                                placeholder="Write a message..."
+                                placeholderTextColor="#bbb"
+                                onSubmitEditing={sendMessage}
+                                returnKeyType="send"
+                                editable={!uploading}
+                            />
+                            <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} activeOpacity={0.7} disabled={uploading}>
+                                {uploading ? <ActivityIndicator size="small" color={ACCENT} /> : <Ionicons name="send" size={20} color={ACCENT} />}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
             </KeyboardAvoidingView>
+
+            {/* Full-screen Image Preview Modal */}
+            <Modal visible={!!previewImage} transparent animationType='fade'>
+                <View style={styles.modalBackground}>
+                    <TouchableOpacity 
+                        style={styles.closePreviewBtn} 
+                        onPress={() => setPreviewImage(null)}
+                    >
+                        <Ionicons name='close' size={30} color='#fff' />
+                    </TouchableOpacity>
+                    {previewImage && (
+                        <Image source={{ uri: previewImage }} style={styles.fullScreenImage} resizeMode='contain' />
+                    )}
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -361,6 +518,9 @@ const styles = StyleSheet.create({
         paddingRight: 4,
         paddingLeft: 0,
     },
+    inputBarWrapper: {
+        backgroundColor: '#fff',
+    },
     inputBar: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -369,7 +529,6 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#f0f0f0',
         gap: 8,
-        backgroundColor: '#fff',
     },
     plusBtn: {
         padding: 4,
@@ -385,5 +544,56 @@ const styles = StyleSheet.create({
     },
     sendBtn: {
         padding: 6,
+    },
+    previewContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingTop: 10,
+    },
+    previewThumb: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+    },
+    previewVideoThumb: {
+        width: 100,
+        height: 60,
+        borderRadius: 8,
+        backgroundColor: '#333',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        padding: 4,
+        gap: 4,
+    },
+    previewVideoText: {
+        color: '#fff',
+        fontSize: 10,
+        flex: 1,
+    },
+    removeMediaBtn: {
+        position: 'absolute',
+        top: 2,
+        left: 65,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 12,
+        padding: 2,
+    },
+    modalBackground: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    closePreviewBtn: {
+        position: 'absolute',
+        top: 40,
+        right: 20,
+        zIndex: 1,
+    },
+    fullScreenImage: {
+        width: '90%',
+        height: '80%',
     },
 });

@@ -110,6 +110,8 @@ export default function EditProfileScreen() {
     const [showConfirm, setShowConfirm] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const [pendingOtpData, setPendingOtpData] = useState<{ destination: string, message: string } | null>(null);
+    const [otpCode, setOtpCode] = useState('');
 
     // ── Derived display values ───────────────────────────────────────────────
     const displayValues: Record<FieldKey, string> = {
@@ -174,11 +176,33 @@ export default function EditProfileScreen() {
             const res = await api.patch('/driver/edit-profile', body);
             const data = res.data;
 
+            if (data.pendingProfileOtp) {
+                setPendingOtpData({ destination: data.destination, message: data.message });
+                return;
+            }
+
             // Update context so the whole app reflects the change
             if (data.user) setUser(data.user);
             setEditingField(null);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Unable to reach the server.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        if (otpCode.length !== 6) return setError("OTP must be 6 digits.");
+        setSaving(true);
+        setError(null);
+        try {
+            const res = await api.post('/driver/edit-profile/verify-update', { code: otpCode });
+            if (res.data.user) setUser(res.data.user);
+            setPendingOtpData(null);
+            setEditingField(null);
+            setOtpCode('');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Invalid OTP.');
         } finally {
             setSaving(false);
         }
@@ -211,7 +235,34 @@ export default function EditProfileScreen() {
                 {/* ── White card ──────────────────────────────────── */}
                 <ScrollView style={s.card} contentContainerStyle={s.cardContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-                    {editingField && activeField ? (
+                    {pendingOtpData ? (
+                        <>
+                            <Text style={s.sectionLabel}>Verification Required</Text>
+                            <View style={s.divider} />
+                            <Text style={{ marginBottom: 16, color: '#333' }}>{pendingOtpData.message}</Text>
+                            
+                            <TextInput
+                                style={s.input}
+                                placeholder="Enter 6-digit OTP"
+                                placeholderTextColor="#aaa"
+                                value={otpCode}
+                                onChangeText={t => { setError(null); setOtpCode(t.replace(/[^0-9]/g, '')); }}
+                                keyboardType="number-pad"
+                                maxLength={6}
+                                autoFocus
+                            />
+
+                            {error && <Text style={s.errorText}>{error}</Text>}
+
+                            <TouchableOpacity style={[s.saveBtn, saving && s.saveBtnDim]} onPress={handleVerifyOtp} disabled={saving} activeOpacity={0.85}>
+                                {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnText}>VERIFY</Text>}
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7} onPress={() => { setPendingOtpData(null); setOtpCode(''); }}>
+                                <Text style={s.deleteText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : editingField && activeField ? (
                         /* ── Inline editor ── */
                         <>
                             <Text style={s.sectionLabel}>{activeField.label}</Text>

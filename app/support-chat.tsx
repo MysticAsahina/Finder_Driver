@@ -7,11 +7,13 @@ import {
     FlatList, KeyboardAvoidingView, Platform,
     StyleSheet,
     Text, TextInput, TouchableOpacity,
-    View, AppState, Alert,
+    View, AppState, Alert, Image, Modal, ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import api from '@/utils/axios';
+import * as ImagePicker from 'expo-image-picker';
+import { Video, ResizeMode } from 'expo-av';
 
 const ACCENT = Colors.light.tint;
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -21,8 +23,10 @@ type Message = {
     ticketId: string;
     senderId: string;
     senderRole: 'passenger' | 'driver' | 'admin';
-    body: string;
+    body?: string;
     createdAt: string;
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video';
 };
 
 export default function SupportChatScreen() {
@@ -36,6 +40,9 @@ export default function SupportChatScreen() {
     const [isResolved, setIsResolved] = useState(false);
     const socketRef = useRef<Socket | null>(null);
     const listRef = useRef<FlatList>(null);
+    const [pendingMedia, setPendingMedia] = useState<{ uri: string, mediaType: 'image' | 'video', fileName: string } | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     const ensureTicket = async () => {
         try {
@@ -130,28 +137,106 @@ export default function SupportChatScreen() {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }, [msgs]);
 
+    const handlePickMedia = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images', 'videos'],
+                quality: 0.8,
+                videoMaxDuration: 60,
+            });
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                const asset = result.assets[0];
+                const mediaType = asset.type === 'video' ? 'video' : 'image';
+                
+                if (asset.fileSize) {
+                    const sizeMB = asset.fileSize / (1024 * 1024);
+                    if (mediaType === 'image' && sizeMB > 5) {
+                        Alert.alert('Error', 'Image must be smaller than 5MB');
+                        return;
+                    }
+                    if (mediaType === 'video' && sizeMB > 20) {
+                        Alert.alert('Error', 'Video must be smaller than 20MB');
+                        return;
+                    }
+                }
+                
+                let fileName = asset.fileName;
+                if (!fileName) {
+                    const ext = mediaType === 'video' ? 'mp4' : 'jpg';
+                    fileName = `upload.${ext}`;
+                }
+                
+                setPendingMedia({ uri: asset.uri, mediaType, fileName });
+            }
+        } catch (error) {
+            console.error('Error picking media:', error);
+            Alert.alert('Error', 'Failed to pick media');
+        }
+    };
+
     const send = async () => {
         const text = input.trim();
-        if (!text || sending) return;
+        if ((!text && !pendingMedia) || sending || uploading) return;
 
         const activeTicketId = await ensureTicket();
         if (!activeTicketId) return;
 
         setSending(true);
         setInput('');
+        
+        let localMediaUrl = pendingMedia?.uri;
+        let localMediaType = pendingMedia?.mediaType;
+        let localFileName = pendingMedia?.fileName;
+        
+        setPendingMedia(null);
 
         const optimisticMsg: Message = {
             _id: Date.now().toString(),
             ticketId: activeTicketId,
             senderId: '',
             senderRole: 'driver',
-            body: text,
+            body: text || undefined,
             createdAt: new Date().toISOString(),
+            mediaUrl: localMediaUrl,
+            mediaType: localMediaType,
         };
         setMsgs(prev => [...prev, optimisticMsg]);
 
         try {
-            const res = await api.post(`/support/tickets/${activeTicketId}/messages`, { body: text });
+            let finalMediaUrl = undefined;
+            if (localMediaUrl && localMediaType) {
+                setUploading(true);
+                const sigRes = await api.post('/chat/cloudinary-signature', { mediaType: localMediaType });
+                const signatureData = sigRes.data;
+
+                const formData = new FormData();
+                formData.append('file', { 
+                    uri: localMediaUrl, 
+                    name: localFileName || (localMediaType === 'video' ? 'upload.mp4' : 'upload.jpg'), 
+                    type: localMediaType === 'video' ? 'video/mp4' : 'image/jpeg' 
+                } as any);
+                formData.append('api_key', signatureData.apiKey);
+                formData.append('timestamp', signatureData.timestamp.toString());
+                formData.append('signature', signatureData.signature);
+                formData.append('folder', signatureData.folder);
+                if (signatureData.tags) formData.append('tags', signatureData.tags);
+
+                const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${signatureData.cloudName}/${signatureData.resourceType}/upload`, { 
+                    method: 'POST', 
+                    body: formData 
+                });
+                const uploadData = await uploadRes.json();
+                if (!uploadData.secure_url) {
+                     throw new Error('Upload failed');
+                }
+                finalMediaUrl = uploadData.secure_url;
+            }
+
+            const res = await api.post(`/support/tickets/${activeTicketId}/messages`, { 
+                body: text || undefined,
+                mediaUrl: finalMediaUrl,
+                mediaType: localMediaType
+            });
             const data = res.data;
             setMsgs(prev => {
                 if (prev.some(m => m._id === data.message._id)) {
@@ -165,6 +250,7 @@ export default function SupportChatScreen() {
             setMsgs(prev => prev.filter(m => m._id !== optimisticMsg._id));
         } finally {
             setSending(false);
+            setUploading(false);
         }
     };
 
@@ -193,9 +279,28 @@ export default function SupportChatScreen() {
                     renderItem={({ item }) => (
                         <View style={[styles.messageBubbleWrap, item.senderRole === 'driver' && styles.userBubbleWrap]}>
                             <View style={[styles.messageBubble, item.senderRole === 'driver' ? styles.userBubble : styles.botBubble]}>
-                                <Text style={[styles.messageText, item.senderRole === 'driver' && styles.userMessageText]}>
-                                    {item.body}
-                                </Text>
+                                {item.mediaUrl && item.mediaType === 'image' && (
+                                    <TouchableOpacity onPress={() => setPreviewImage(item.mediaUrl as string)}>
+                                        <Image 
+                                            source={{ uri: item.mediaUrl }} 
+                                            style={{ width: 200, height: 200, borderRadius: 12, marginTop: item.body ? 8 : 0 }} 
+                                            resizeMode='cover' 
+                                        />
+                                    </TouchableOpacity>
+                                )}
+                                {item.mediaUrl && item.mediaType === 'video' && (
+                                    <Video 
+                                        source={{ uri: item.mediaUrl }} 
+                                        style={{ width: 220, height: 160, borderRadius: 12, marginTop: item.body ? 8 : 0 }} 
+                                        useNativeControls 
+                                        resizeMode={ResizeMode.CONTAIN} 
+                                    />
+                                )}
+                                {!!item.body && (
+                                    <Text style={[styles.messageText, item.senderRole === 'driver' && styles.userMessageText]}>
+                                        {item.body}
+                                    </Text>
+                                )}
                             </View>
                             <Text style={[styles.messageTime, item.senderRole === 'driver' && styles.userTime]}>
                                 {new Date(item.createdAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: false })}
@@ -227,25 +332,60 @@ export default function SupportChatScreen() {
                         <Text style={{ color: '#888', fontStyle: 'italic', marginVertical: 10 }}>This ticket has been resolved.</Text>
                     </View>
                 ) : (
-                    <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
-                        <TouchableOpacity style={styles.plusBtn} activeOpacity={0.7}>
-                            <Ionicons name="add" size={24} color={ACCENT} />
-                        </TouchableOpacity>
-                        <TextInput
-                            style={styles.textInput}
-                            value={input}
-                            onChangeText={setInput}
-                            placeholder="Write a message..."
-                            placeholderTextColor="#bbb"
-                            onSubmitEditing={send}
-                            returnKeyType="send"
-                        />
-                        <TouchableOpacity style={styles.sendBtn} onPress={send} activeOpacity={0.7}>
-                            <Ionicons name="send" size={20} color={ACCENT} />
-                        </TouchableOpacity>
+                    <View style={[styles.inputBarWrapper, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
+                        {pendingMedia && (
+                            <View style={styles.previewContainer}>
+                                {pendingMedia.mediaType === 'image' ? (
+                                    <Image source={{ uri: pendingMedia.uri }} style={styles.previewThumb} />
+                                ) : (
+                                    <View style={styles.previewVideoThumb}>
+                                        <Ionicons name="videocam" size={20} color="#fff" />
+                                        <Text style={styles.previewVideoText} numberOfLines={1}>
+                                            {pendingMedia.fileName}
+                                        </Text>
+                                    </View>
+                                )}
+                                <TouchableOpacity style={styles.removeMediaBtn} onPress={() => setPendingMedia(null)}>
+                                    <Ionicons name="close" size={16} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        <View style={styles.inputBar}>
+                            <TouchableOpacity style={styles.plusBtn} onPress={handlePickMedia} activeOpacity={0.7} disabled={uploading}>
+                                <Ionicons name="add" size={24} color={ACCENT} />
+                            </TouchableOpacity>
+                            <TextInput
+                                style={styles.textInput}
+                                value={input}
+                                onChangeText={setInput}
+                                placeholder="Write a message..."
+                                placeholderTextColor="#bbb"
+                                onSubmitEditing={send}
+                                returnKeyType="send"
+                                editable={!uploading}
+                            />
+                            <TouchableOpacity style={styles.sendBtn} onPress={send} activeOpacity={0.7} disabled={uploading}>
+                                {uploading ? <ActivityIndicator size="small" color={ACCENT} /> : <Ionicons name="send" size={20} color={ACCENT} />}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
             </KeyboardAvoidingView>
+
+            {/* Full-screen Image Preview Modal */}
+            <Modal visible={!!previewImage} transparent animationType='fade'>
+                <View style={styles.modalBackground}>
+                    <TouchableOpacity 
+                        style={styles.closePreviewBtn} 
+                        onPress={() => setPreviewImage(null)}
+                    >
+                        <Ionicons name='close' size={30} color='#fff' />
+                    </TouchableOpacity>
+                    {previewImage && (
+                        <Image source={{ uri: previewImage }} style={styles.fullScreenImage} resizeMode='contain' />
+                    )}
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -363,6 +503,9 @@ const styles = StyleSheet.create({
         paddingRight: 4,
         paddingLeft: 0,
     },
+    inputBarWrapper: {
+        backgroundColor: '#fff',
+    },
     inputBar: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -371,7 +514,6 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#f0f0f0',
         gap: 8,
-        backgroundColor: '#fff',
     },
     plusBtn: {
         padding: 4,
@@ -387,5 +529,56 @@ const styles = StyleSheet.create({
     },
     sendBtn: {
         padding: 6,
+    },
+    previewContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingTop: 10,
+    },
+    previewThumb: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+    },
+    previewVideoThumb: {
+        width: 100,
+        height: 60,
+        borderRadius: 8,
+        backgroundColor: '#333',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        padding: 4,
+        gap: 4,
+    },
+    previewVideoText: {
+        color: '#fff',
+        fontSize: 10,
+        flex: 1,
+    },
+    removeMediaBtn: {
+        position: 'absolute',
+        top: 2,
+        left: 65,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 12,
+        padding: 2,
+    },
+    modalBackground: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    closePreviewBtn: {
+        position: 'absolute',
+        top: 40,
+        right: 20,
+        zIndex: 1,
+    },
+    fullScreenImage: {
+        width: '90%',
+        height: '80%',
     },
 });
