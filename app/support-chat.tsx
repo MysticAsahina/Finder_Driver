@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
     FlatList, KeyboardAvoidingView, Platform,
@@ -31,12 +31,13 @@ type Message = {
 
 export default function SupportChatScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
     const insets = useSafeAreaInsets();
     const { accessToken } = useContext(AuthContext);
     const [msgs, setMsgs] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
-    const [ticketId, setTicketId] = useState<string | null>(null);
+    const [ticketId, setTicketId] = useState<string | null>((params.ticketId as string) || null);
     const [isResolved, setIsResolved] = useState(false);
     const socketRef = useRef<Socket | null>(null);
     const listRef = useRef<FlatList>(null);

@@ -1,46 +1,86 @@
-import React from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
+    Modal,
+    ActivityIndicator,
+    Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { AuthContext } from '@/context/AuthContext';
+import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
 
-const MOCK_SUPPORT_LOGS = [
-    {
-        id: '1',
-        title: 'Passenger Left Phone on Seat',
-        status: 'Pending',
-        adminReply: 'Admin: We are verifying the report. Please coordinate with the passenger Marcelino Zafra if they reach out.',
-        refNo: '109384012',
-        date: 'June 08, 2026',
-    },
-    {
-        id: '2',
-        title: 'App Location Accuracy Issue',
-        status: 'Resolved',
-        adminReply: 'Admin: Please make sure location accuracy is set to High and update your Google Play Services.',
-        refNo: '208472910',
-        date: 'June 07, 2026',
-    },
-    {
-        id: '3',
-        title: 'Fare Rate Discrepancy',
-        status: 'Resolved',
-        adminReply: 'Admin: The fare calculation has been adjusted to match TODA guidelines.',
-        refNo: '304958102',
-        date: 'June 04, 2026',
-    },
+const CATEGORIES = [
+    "Fare Dispute",
+    "Lost Item",
+    "Passenger Complaint",
+    "App Issue",
+    "Account & Profile",
+    "General Support",
+    "Other"
 ];
 
 export default function HelpCentreScreen() {
     const router = useRouter();
+    const { accessToken } = useContext(AuthContext);
+
+    const [tickets, setTickets] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [creating, setCreating] = useState(false);
+
+    const fetchTickets = async () => {
+        if (!accessToken) return;
+        try {
+            const res = await api.get('/support/tickets');
+            const data = res.data;
+            setTickets(data.tickets || []);
+        } catch (err) {
+            console.error("Failed to fetch tickets", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchTickets();
+        }, [accessToken])
+    );
+
+    const openTicketsCount = tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+
+    const handleCreateTicket = async (category: string) => {
+        if (creating || !accessToken) return;
+        setCreating(true);
+
+        try {
+            const res = await api.post('/support/tickets', { subject: category });
+            const data = res.data;
+            
+            if (data.ticket) {
+                setModalVisible(false);
+                router.push({ pathname: '/support-chat', params: { ticketId: data.ticket._id } });
+            } else {
+                Alert.alert("Error", data.message || "Could not create ticket");
+            }
+        } catch (err: any) {
+            console.error("Failed to create ticket", err);
+            Alert.alert("Error", err.response?.data?.message || "Could not connect to server");
+        } finally {
+            setCreating(false);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -77,7 +117,7 @@ export default function HelpCentreScreen() {
                 </View>
 
                 {/* Contact Support Card */}
-                <TouchableOpacity style={styles.supportCard} activeOpacity={0.8} onPress={() => router.push('/support-chat')}>
+                <TouchableOpacity style={styles.supportCard} activeOpacity={0.8} onPress={() => setModalVisible(true)}>
                     <View style={styles.supportIcon}>
                         <Ionicons name="headset" size={24} color={ACCENT} />
                     </View>
@@ -85,39 +125,94 @@ export default function HelpCentreScreen() {
                         <Text style={styles.supportText}>
                             Contact support for assistance or to share your feedback.
                         </Text>
-                        <Text style={styles.supportTap}>Tap to chat with us →</Text>
+                        <Text style={styles.supportTap}>Tap to start a new chat →</Text>
                     </View>
                 </TouchableOpacity>
 
                 {/* Support Logs History */}
-                <Text style={styles.historyTitle}>Support Logs</Text>
-                <View style={styles.historyList}>
-                    {MOCK_SUPPORT_LOGS.map(log => (
-                        <TouchableOpacity
-                            key={log.id}
-                            style={styles.logCard}
-                            activeOpacity={0.85}
-                            onPress={() => router.push('/support-chat')}
-                        >
-                            <View style={styles.logHeader}>
-                                <Text style={styles.logTitle}>{log.title}</Text>
-                                <Text style={[styles.logStatus, log.status === 'Pending' ? styles.statusPending : styles.statusResolved]}>
-                                    {log.status}
+                <Text style={styles.historyTitle}>Support Tickets</Text>
+                
+                {loading ? (
+                    <ActivityIndicator style={{ marginTop: 20 }} color={ACCENT} />
+                ) : tickets.length === 0 ? (
+                    <Text style={styles.emptyText}>You have no support tickets.</Text>
+                ) : (
+                    <View style={styles.historyList}>
+                        {tickets.map(ticket => (
+                            <TouchableOpacity
+                                key={ticket._id}
+                                style={styles.logCard}
+                                activeOpacity={0.85}
+                                onPress={() => router.push({ pathname: '/support-chat', params: { ticketId: ticket._id } })}
+                            >
+                                <View style={styles.logHeader}>
+                                    <Text style={styles.logTitle}>{ticket.subject}</Text>
+                                    <Text style={[styles.logStatus, (ticket.status === 'open' || ticket.status === 'in_progress') ? styles.statusPending : styles.statusResolved]}>
+                                        {ticket.status === 'open' ? 'Open' : (ticket.status === 'in_progress' ? 'In Progress' : 'Resolved')}
+                                    </Text>
+                                </View>
+
+                                <View style={styles.logFooter}>
+                                    <Text style={styles.logDate}>
+                                        {new Date(ticket.updatedAt).toLocaleDateString('en-US', {
+                                            month: 'short', day: 'numeric', year: 'numeric'
+                                        })}
+                                    </Text>
+                                    <Text style={styles.logRef}>Ticket #{ticket._id.slice(-6).toUpperCase()}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+            </ScrollView>
+
+            {/* Category Selection Modal */}
+            <Modal
+                visible={modalVisible}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>New Support Ticket</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseBtn}>
+                                <Text style={styles.modalCloseText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        {openTicketsCount >= 3 ? (
+                            <View style={styles.modalErrorBox}>
+                                <Text style={styles.modalErrorText}>
+                                    You have reached the maximum of 3 open tickets. Please wait for an existing ticket to be resolved before creating a new one.
                                 </Text>
                             </View>
-
-                            <Text style={styles.logReply} numberOfLines={2}>
-                                {log.adminReply}
-                            </Text>
-
-                            <View style={styles.logFooter}>
-                                <Text style={styles.logDate}>Date: {log.date}</Text>
-                                <Text style={styles.logRef}>Reference No. {log.refNo}</Text>
+                        ) : (
+                            <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
+                                <Text style={styles.modalSubtitle}>What do you need help with?</Text>
+                                {CATEGORIES.map(cat => (
+                                    <TouchableOpacity 
+                                        key={cat} 
+                                        style={styles.categoryBtn}
+                                        onPress={() => handleCreateTicket(cat)}
+                                        disabled={creating}
+                                    >
+                                        <Text style={styles.categoryBtnText}>{cat}</Text>
+                                        <Ionicons name="chevron-forward" size={18} color="#aaa" />
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        )}
+                        
+                        {creating && (
+                            <View style={styles.creatingOverlay}>
+                                <ActivityIndicator color={ACCENT} size="large" />
                             </View>
-                        </TouchableOpacity>
-                    ))}
+                        )}
+                    </View>
                 </View>
-            </ScrollView>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -226,6 +321,12 @@ const styles = StyleSheet.create({
         marginTop: 28,
         marginBottom: 12,
     },
+    emptyText: {
+        color: '#888',
+        fontSize: 14,
+        fontStyle: 'italic',
+        marginBottom: 20,
+    },
     historyList: {
         width: '100%',
     },
@@ -245,7 +346,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 12,
     },
     logTitle: {
         fontSize: 15,
@@ -264,12 +365,6 @@ const styles = StyleSheet.create({
     statusResolved: {
         color: '#2e7d32',
     },
-    logReply: {
-        fontSize: 13,
-        color: '#333333',
-        lineHeight: 18,
-        marginBottom: 12,
-    },
     logFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -287,4 +382,77 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#1a1a1a',
     },
+    // Modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1a1a1a',
+    },
+    modalCloseBtn: {
+        padding: 4,
+    },
+    modalCloseText: {
+        color: '#666',
+        fontSize: 14,
+    },
+    modalSubtitle: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 16,
+    },
+    categoryList: {
+        paddingBottom: 20,
+    },
+    categoryBtn: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    categoryBtnText: {
+        fontSize: 15,
+        color: '#1a1a1a',
+        fontWeight: '500',
+    },
+    modalErrorBox: {
+        backgroundColor: '#FFF0F0',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#FFD6D6',
+        marginBottom: 20,
+    },
+    modalErrorText: {
+        color: '#D32F2F',
+        fontSize: 14,
+        lineHeight: 20,
+        textAlign: 'center',
+    },
+    creatingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(255,255,255,0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 20,
+    }
 });
