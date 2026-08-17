@@ -6,7 +6,7 @@ import {
     setDriverRegMpin,
 } from '@/store/driverRegistrationStore';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     Alert,
     StyleSheet,
@@ -14,6 +14,9 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '@/utils/axios';
@@ -29,17 +32,14 @@ export default function SetupMpinScreen() {
   const [step,      setStep]      = useState<'create' | 'confirm'>('create');
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
+  const inputRef = useRef<TextInput>(null);
 
   const currentPin = step === 'create' ? pin : confirmPin;
+  const setCurrentPin = step === 'create' ? setPin : setConfirmPin;
 
-  const handleInput = async (val: string) => {
-    const digits = val.replace(/\D/g, '').slice(0, PIN_LENGTH);
-
-    if (step === 'create') {
-      setPin(digits);
-    } else {
-      setConfirmPin(digits);
-    }
+  const handleInput = async (text: string) => {
+    const digits = text.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH);
+    setCurrentPin(digits);
     setError('');
 
     if (digits.length === PIN_LENGTH) {
@@ -47,11 +47,15 @@ export default function SetupMpinScreen() {
         setTimeout(() => {
           setStep('confirm');
           setConfirmPin('');
+          inputRef.current?.focus();
         }, 120);
       } else {
         if (digits !== pin) {
           setError('PINs do not match. Please try again.');
-          setTimeout(() => setConfirmPin(''), 300);
+          setTimeout(() => {
+            setConfirmPin('');
+            inputRef.current?.focus();
+          }, 300);
           return;
         }
 
@@ -104,55 +108,68 @@ export default function SetupMpinScreen() {
     }
   };
 
-  const dots = Array.from({ length: PIN_LENGTH }, (_, i) => ({
-    filled: i < currentPin.length,
-  }));
-
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.inner}>
-        <Text style={styles.title}>
-          {step === 'create' ? 'Create MPIN' : 'Confirm MPIN'}
-        </Text>
-        <Text style={styles.subtitle}>
-          {step === 'create'
-            ? 'Enter a 4-digit PIN to secure your account.'
-            : 'Re-enter your PIN to confirm.'}
-        </Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Pressable style={styles.inner} onPress={() => inputRef.current?.focus()}>
+          <Text style={styles.title}>
+            {step === 'create' ? 'Create MPIN' : 'Confirm MPIN'}
+          </Text>
+          <Text style={styles.subtitle}>
+            {step === 'create'
+              ? 'Enter a 4-digit PIN to secure your account.'
+              : 'Re-enter your PIN to confirm.'}
+          </Text>
 
-        <View style={styles.dotsWrapper}>
-          <View style={styles.dotsRow} pointerEvents="none">
-            {dots.map((dot, i) => (
-              <View key={i} style={[styles.dot, dot.filled && styles.dotFilled]} />
+          {/* Custom OTP Boxes */}
+          <View style={styles.otpRow}>
+            {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.otpBox,
+                  currentPin.length > i ? styles.otpBoxFilled : null,
+                  error ? styles.otpBoxError : null
+                ]}
+              >
+                {currentPin.length > i && <Text style={styles.otpDot}>•</Text>}
+              </View>
             ))}
           </View>
+
+          <View style={styles.errorContainer}>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
+          
+          <View style={styles.loadingContainer}>
+            {loading && <Text style={styles.loadingText}>Submitting application...</Text>}
+          </View>
+
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+            disabled={loading}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+
+          {/* Hidden input */}
           <TextInput
-            style={styles.overlayInput}
+            ref={inputRef}
+            style={styles.hiddenInput}
             value={currentPin}
             onChangeText={handleInput}
             keyboardType="number-pad"
             maxLength={PIN_LENGTH}
             autoFocus
             caretHidden
-            showSoftInputOnFocus
-            selectionColor="transparent"
-            underlineColorAndroid="transparent"
-            editable={!loading}
           />
-        </View>
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        {loading && <Text style={styles.loadingText}>Submitting application...</Text>}
-
-        <TouchableOpacity
-          style={styles.cancelBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          disabled={loading}
-        >
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
+        </Pressable>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -162,13 +179,50 @@ const styles = StyleSheet.create({
   inner:        { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   title:        { fontSize: 26, fontWeight: '700', color: ACCENT, marginBottom: 10, textAlign: 'center' },
   subtitle:     { fontSize: 14, color: '#999', textAlign: 'center', marginBottom: 40, lineHeight: 21 },
-  dotsWrapper:  { position: 'relative', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  dotsRow:      { flexDirection: 'row', gap: 20, paddingVertical: 24, paddingHorizontal: 16 },
-  dot:          { width: 22, height: 22, borderRadius: 11, borderWidth: 2.5, borderColor: ACCENT, backgroundColor: 'transparent' },
-  dotFilled:    { backgroundColor: ACCENT },
-  overlayInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, color: 'transparent' },
-  errorText:    { color: '#e53935', fontSize: 13, textAlign: 'center', marginBottom: 8 },
-  loadingText:  { color: '#999', fontSize: 13, textAlign: 'center', marginBottom: 8 },
+  otpRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  otpBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1.5,
+    borderColor: '#ddd',
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpBoxFilled: {
+    borderColor: ACCENT,
+    backgroundColor: '#fff',
+  },
+  otpBoxError: {
+    borderColor: '#e74c3c',
+  },
+  otpDot: {
+    fontSize: 32,
+    color: '#222',
+    lineHeight: 38,
+  },
+  errorContainer: {
+    height: 24,
+    marginBottom: 8,
+    justifyContent: 'center',
+  },
+  errorText:    { color: '#e53935', fontSize: 13, textAlign: 'center', fontWeight: '500' },
+  loadingContainer: {
+    height: 24,
+    justifyContent: 'center',
+  },
+  loadingText:  { color: '#999', fontSize: 13, textAlign: 'center' },
   cancelBtn:    { marginTop: 32, paddingVertical: 8, paddingHorizontal: 24 },
   cancelText:   { color: '#aaa', fontSize: 14 },
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0,
+    width: 1,
+    height: 1,
+  },
 });

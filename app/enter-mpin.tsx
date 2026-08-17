@@ -1,18 +1,19 @@
-import React, { useState, useRef } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    TextInput,
-    Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
-import { useContext } from 'react';
 import api from '@/utils/axios';
+import { useRouter } from 'expo-router';
+import React, { useContext, useRef, useState } from 'react';
+import {
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT = Colors.light.tint;
 const PIN_LENGTH = 4;
@@ -23,7 +24,7 @@ export default function EnterMpinScreen() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pin, setPin] = useState('');
-    const inputRef = React.useRef<import('react-native').TextInput>(null);
+    const inputRef = useRef<TextInput>(null);
 
     const verifyMpin = async (mpin: string) => {
         setLoading(true);
@@ -34,81 +35,93 @@ export default function EnterMpinScreen() {
         } catch (err: any) {
             setError(err.response?.data?.message || 'Invalid MPIN');
             setPin('');
+            inputRef.current?.focus();
         } finally {
             setLoading(false);
         }
     };
 
-    const handleInput = (val: string) => {
+    const handleInput = (text: string) => {
         if (loading) return;
-        const digits = val.replace(/\D/g, '').slice(0, PIN_LENGTH);
-        setPin(digits);
+        setError(null);
         
+        const digits = text.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH);
+        setPin(digits);
+
         if (digits.length === PIN_LENGTH) {
             verifyMpin(digits);
         }
     };
 
-    const dots = Array.from({ length: PIN_LENGTH }, (_, i) => ({
-        filled: i < pin.length,
-    }));
-
     return (
         <SafeAreaView style={styles.container}>
-            <TouchableOpacity
-                style={styles.inner}
-                onPress={() => inputRef.current?.focus()}
-                activeOpacity={1}
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                {/* Logo */}
-                <View style={styles.logoRow}>
-                    <Image
-                        source={require('@/assets/images/logo.png')}
-                        style={styles.logoImg}
-                        resizeMode="contain"
-                    />
-                    <Text style={styles.logoText}>FINDER</Text>
-                </View>
-
-                {/* Spacer */}
-                <View style={{ flex: 1 }} />
-
-                {/* Enter MPIN */}
-                <Text style={styles.title}>Enter MPIN</Text>
-                <Text style={styles.subtitle}>
-                    Enter your MPIN to securely access{'\n'}your account.
-                </Text>
-
-                {/* Dots */}
-                <View style={styles.dotsRow}>
-                    {dots.map((dot, i) => (
-                        <View
-                            key={i}
-                            style={[styles.dot, dot.filled && styles.dotFilled]}
+                <View style={styles.inner}>
+                    {/* Logo */}
+                    <View style={styles.logoRow}>
+                        <Image
+                            source={require('@/assets/images/logo.png')}
+                            style={styles.logoImg}
+                            resizeMode="contain"
                         />
-                    ))}
+                        <Text style={styles.logoText}>FINDER</Text>
+                    </View>
+
+                    {/* Spacer */}
+                    <View style={{ flex: 1 }} />
+
+                    {/* Enter MPIN */}
+                    <Text style={styles.title}>Enter MPIN</Text>
+                    <Text style={styles.subtitle}>
+                        Enter your MPIN to securely access{'\n'}your account.
+                    </Text>
+
+                    {/* Custom OTP Boxes layered with TextInput */}
+                    <View style={styles.dotsWrapper}>
+                        <View style={styles.otpRow} pointerEvents="none">
+                            {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+                                <View
+                                    key={i}
+                                    style={[
+                                        styles.otpBox,
+                                        pin.length > i ? styles.otpBoxFilled : null,
+                                        error ? styles.otpBoxError : null
+                                    ]}
+                                >
+                                    {pin.length > i && <Text style={styles.otpDot}>•</Text>}
+                                </View>
+                            ))}
+                        </View>
+
+                        <TextInput
+                            ref={inputRef}
+                            style={styles.overlayInput}
+                            value={pin}
+                            onChangeText={handleInput}
+                            keyboardType="number-pad"
+                            maxLength={PIN_LENGTH}
+                            autoFocus
+                            caretHidden
+                        />
+                    </View>
+
+                    {/* Error Message */}
+                    <View style={styles.errorContainer}>
+                        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                    </View>
+
+                    {/* Forgot MPIN */}
+                    <TouchableOpacity style={styles.forgotBtn} activeOpacity={0.7}>
+                        <Text style={styles.forgotText}>Forgot MPIN?</Text>
+                    </TouchableOpacity>
+
+                    {/* Flex spacer to push content up */}
+                    <View style={{ flex: 2 }} />
                 </View>
-
-                {/* Forgot MPIN */}
-                <TouchableOpacity style={styles.forgotBtn} activeOpacity={0.7}>
-                    <Text style={styles.forgotText}>Forgot MPIN?</Text>
-                </TouchableOpacity>
-
-                {/* Flex spacer to push content up */}
-                <View style={{ flex: 2 }} />
-            </TouchableOpacity>
-
-            {/* Hidden input */}
-            <TextInput
-                ref={inputRef}
-                style={styles.hiddenInput}
-                value={pin}
-                onChangeText={handleInput}
-                keyboardType="number-pad"
-                maxLength={PIN_LENGTH}
-                autoFocus
-                caretHidden
-            />
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }
@@ -151,21 +164,56 @@ const styles = StyleSheet.create({
         marginBottom: 32,
         lineHeight: 21,
     },
-    dotsRow: {
+    dotsWrapper: {
+        position: 'relative',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    otpRow: {
         flexDirection: 'row',
-        gap: 20,
-        marginBottom: 20,
+        gap: 10,
     },
-    dot: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        borderWidth: 2,
+    otpBox: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        borderWidth: 1.5,
+        borderColor: '#ddd',
+        backgroundColor: '#f5f5f5',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    otpBoxFilled: {
         borderColor: ACCENT,
-        backgroundColor: 'transparent',
+        backgroundColor: '#fff',
     },
-    dotFilled: {
-        backgroundColor: ACCENT,
+    otpBoxError: {
+        borderColor: '#e74c3c',
+    },
+    otpDot: {
+        fontSize: 32,
+        color: '#222',
+        lineHeight: 38,
+    },
+    overlayInput: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        opacity: 0,
+        color: 'transparent',
+    },
+    errorContainer: {
+        height: 24,
+        marginBottom: 8,
+        justifyContent: 'center',
+    },
+    errorText: {
+        color: '#e74c3c',
+        fontSize: 14,
+        fontWeight: '500',
     },
     forgotBtn: {
         marginTop: 8,
@@ -174,11 +222,5 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#555',
         fontWeight: '500',
-    },
-    hiddenInput: {
-        position: 'absolute',
-        opacity: 0,
-        width: 1,
-        height: 1,
     },
 });

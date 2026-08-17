@@ -55,6 +55,15 @@ export default function PassengerChatScreen() {
     const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     useEffect(() => {
+        // @ts-ignore
+        global.isRideChatActive = true;
+        return () => {
+            // @ts-ignore
+            global.isRideChatActive = false;
+        };
+    }, []);
+
+    useEffect(() => {
         if (!params.rideId) return;
 
         const loadMessages = async () => {
