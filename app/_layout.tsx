@@ -9,6 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/context/AuthContext';
 import { SocketProvider } from '@/context/SocketContext';
 import AppLifecycleObserver from '@/components/AppLifecycleObserver';
+import GlobalCallListener from '@/components/GlobalCallListener';
 import '@/utils/backgroundLocation';
 
 // @ts-ignore
@@ -40,6 +41,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <SocketProvider>
+        <GlobalCallListener />
         <SafeAreaProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <AppLifecycleObserver />
