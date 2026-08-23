@@ -69,7 +69,14 @@ module.exports = {
         }
       ],
       "expo-video",
-      "expo-audio"
+      "expo-audio",
+      [
+        "react-native-webrtc",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
