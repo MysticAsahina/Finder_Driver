@@ -54,6 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSession();
   }, []);
 
+  useEffect(() => {
+    if (accessToken) {
+      registerPushToken(accessToken);
+    }
+  }, [accessToken]);
+
   async function restoreSession() {
     try {
       const refreshToken =

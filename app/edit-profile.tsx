@@ -208,6 +208,30 @@ export default function EditProfileScreen() {
         }
     };
 
+    const handleResend = async () => {
+        setSaving(true);
+        setError(null);
+        try {
+            const body: Record<string, string> = {};
+            if (editingField === 'password') {
+                body.password = fieldValue;
+                body.confirmPassword = confirmValue;
+            } else if (editingField === 'mpin') {
+                body.mpin = fieldValue;
+                body.confirmMpin = confirmValue;
+            } else if (editingField) {
+                body[editingField] = fieldValue.trim();
+            }
+
+            await api.patch('/driver/edit-profile', body);
+            Alert.alert("Success", "A new OTP has been sent.");
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to resend OTP.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     // ── Render ────────────────────────────────────────────────────────────────
     const activeField = FIELDS.find(f => f.key === editingField);
     const initials = `${(user?.firstName ?? '')[0] ?? ''}${(user?.lastName ?? '')[0] ?? ''}`.toUpperCase();
@@ -260,6 +284,10 @@ export default function EditProfileScreen() {
 
                             <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7} onPress={() => { setPendingOtpData(null); setOtpCode(''); }}>
                                 <Text style={s.deleteText}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={{ marginTop: 12, alignItems: 'center' }} onPress={handleResend} disabled={saving} activeOpacity={0.7}>
+                                <Text style={{ color: ACCENT, fontSize: 16, fontWeight: '600' }}>Resend OTP</Text>
                             </TouchableOpacity>
                         </>
                     ) : editingField && activeField ? (
