@@ -69,7 +69,7 @@ module.exports = {
         }
       ],
       "expo-video",
-      "expo-audio",
+      "@novartc/expo-config-plugin-incall-manager",
       [
         "@config-plugins/react-native-webrtc",
         {

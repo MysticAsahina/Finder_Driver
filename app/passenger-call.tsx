@@ -7,6 +7,7 @@ import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices
 import { SocketContext } from '../context/SocketContext';
 import { AuthContext } from '../context/AuthContext';
 import api from '@/utils/axios';
+import InCallManager from '@novartc/react-native-incall-manager';
 
 const ICE_SERVERS = {
     iceServers: [
@@ -36,6 +37,10 @@ export default function PassengerCallScreen() {
     const pc = useRef<RTCPeerConnection | null>(null);
     const [rideId, setRideId] = useState<string | null>(null);
 
+    const pendingCandidates = useRef<any[]>([]);
+
+    const [isRemoteVideoOn, setIsRemoteVideoOn] = useState(false);
+
     // Get current ride details
     useEffect(() => {
         const fetchRide = async () => {
@@ -63,6 +68,7 @@ export default function PassengerCallScreen() {
     };
 
     const cleanup = () => {
+        InCallManager.stop();
         if (localStream) {
             localStream.getTracks().forEach(t => t.stop());
             setLocalStream(null);
@@ -74,6 +80,10 @@ export default function PassengerCallScreen() {
     };
 
     useEffect(() => {
+        // Start InCallManager
+        InCallManager.start({ media: isInitialVideoCall ? 'video' : 'audio' });
+        InCallManager.setForceSpeakerphoneOn(false); // Default to earpiece
+        
         return () => cleanup();
     }, []);
 
@@ -86,7 +96,7 @@ export default function PassengerCallScreen() {
             try {
                 const mediaConstraints = {
                     audio: true,
-                    video: isInitialVideoCall ? { facingMode: 'user' } : false,
+                    video: { facingMode: 'user' },
                 };
                 stream = await mediaDevices.getUserMedia(mediaConstraints);
                 setLocalStream(stream);
@@ -117,6 +127,7 @@ export default function PassengerCallScreen() {
             if (isReceiving) {
                 // If receiving, we already accepted. We just wait for offer.
                 setIsCallActive(true);
+                socket.emit('webrtc_call_accepted', { rideId });
             } else {
                 // We are initiating
                 // Send call initiated. We wait for accept to send offer.
@@ -153,6 +164,11 @@ export default function PassengerCallScreen() {
             if (!pc.current) return;
             try {
                 await pc.current.setRemoteDescription(new RTCSessionDescription(offer));
+                for (const candidate of pendingCandidates.current) {
+                    await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+                pendingCandidates.current = [];
+                
                 const answer = await pc.current.createAnswer();
                 await pc.current.setLocalDescription(answer);
                 socket.emit('webrtc_answer', { rideId, answer });
@@ -165,6 +181,10 @@ export default function PassengerCallScreen() {
             if (!pc.current) return;
             try {
                 await pc.current.setRemoteDescription(new RTCSessionDescription(answer));
+                for (const candidate of pendingCandidates.current) {
+                    await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+                pendingCandidates.current = [];
             } catch (err) {
                 console.error(err);
             }
@@ -173,10 +193,18 @@ export default function PassengerCallScreen() {
         const handleIceCandidate = async (candidate: any) => {
             if (!pc.current) return;
             try {
-                await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                if (pc.current.remoteDescription) {
+                    await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
+                } else {
+                    pendingCandidates.current.push(candidate);
+                }
             } catch (err) {
                 console.error(err);
             }
+        };
+
+        const handleVideoToggled = (data: { isVideoOn: boolean }) => {
+            setIsRemoteVideoOn(data.isVideoOn);
         };
 
         const handleEndCall = () => {
@@ -189,6 +217,7 @@ export default function PassengerCallScreen() {
         socket.on('webrtc_offer', handleOffer);
         socket.on('webrtc_answer', handleAnswer);
         socket.on('webrtc_ice_candidate', handleIceCandidate);
+        socket.on('webrtc_video_toggled', handleVideoToggled);
         socket.on('webrtc_end_call', handleEndCall);
 
         return () => {
@@ -197,6 +226,7 @@ export default function PassengerCallScreen() {
             socket.off('webrtc_offer', handleOffer);
             socket.off('webrtc_answer', handleAnswer);
             socket.off('webrtc_ice_candidate', handleIceCandidate);
+            socket.off('webrtc_video_toggled', handleVideoToggled);
             socket.off('webrtc_end_call', handleEndCall);
         };
     }, [socket, isConnected, rideId]);
@@ -212,8 +242,32 @@ export default function PassengerCallScreen() {
             if (videoTracks.length > 0) {
                 videoTracks[0].enabled = isVideoOn;
             }
+            if (socket && rideId) {
+                socket.emit('webrtc_video_toggled', { rideId, isVideoOn });
+            }
         }
-    }, [isMuted, isVideoOn, localStream]);
+    }, [isMuted, isVideoOn, localStream, socket, rideId]);
+
+    const hasMounted = useRef(false);
+
+    // Handle Speaker toggle
+    useEffect(() => {
+        if (!hasMounted.current) {
+            hasMounted.current = true;
+            return;
+        }
+        
+        InCallManager.setForceSpeakerphoneOn(isSpeaker);
+    }, [isSpeaker]);
+
+    // Initialize remote video state when incoming call is a video call
+    useEffect(() => {
+        if (isReceiving && isInitialVideoCall) {
+            setIsRemoteVideoOn(true);
+        } else if (!isReceiving && isInitialVideoCall) {
+            // We started as video, but don't know remote yet. Wait for their toggle.
+        }
+    }, [isReceiving, isInitialVideoCall]);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -226,27 +280,30 @@ export default function PassengerCallScreen() {
 
                 {/* Main Avatar / Video Area */}
                 <View style={styles.avatarContainer}>
-                    {isVideoOn && remoteStream ? (
+                    {isRemoteVideoOn && remoteStream ? (
                         <View style={styles.videoPlaceholder}>
                             <RTCView 
                                 streamURL={remoteStream.toURL()} 
                                 style={{ width: '100%', height: '100%', borderRadius: 24 }} 
                                 objectFit="cover" 
+                                zOrder={0}
                             />
-                            {localStream && (
-                                <View style={styles.localVideoWrap}>
-                                    <RTCView 
-                                        streamURL={localStream.toURL()} 
-                                        style={{ width: '100%', height: '100%' }} 
-                                        objectFit="cover" 
-                                        mirror={true}
-                                    />
-                                </View>
-                            )}
                         </View>
                     ) : (
                         <View style={styles.audioAvatar}>
                             <Text style={styles.avatarInitial}>{passengerName.charAt(0)}</Text>
+                        </View>
+                    )}
+
+                    {isVideoOn && localStream && (
+                        <View style={[styles.localVideoWrap, { zIndex: 10, elevation: 10 }]}>
+                            <RTCView 
+                                streamURL={localStream.toURL()} 
+                                style={{ width: '100%', height: '100%' }} 
+                                objectFit="cover" 
+                                mirror={true}
+                                zOrder={1}
+                            />
                         </View>
                     )}
                 </View>
