@@ -7,7 +7,7 @@ module.exports = {
     "icon": "./assets/images/icon.png",
     "scheme": "driver",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -78,7 +78,6 @@ module.exports = {
       "@config-plugins/react-native-callkeep"
     ],
     "experiments": {
-      "newArchEnabled": false,
       "typedRoutes": true,
       "reactCompiler": true
     },
