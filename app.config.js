@@ -78,6 +78,7 @@ module.exports = {
       "@config-plugins/react-native-callkeep"
     ],
     "experiments": {
+      "newArchEnabled": false,
       "typedRoutes": true,
       "reactCompiler": true
     },
