@@ -29,7 +29,9 @@ module.exports = {
       "package": "com.monochroma.driver",
       "googleServicesFile": process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
       "config": {
-        "googleMaps": {}
+        "googleMaps": {
+          "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+        }
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
