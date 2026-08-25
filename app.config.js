@@ -27,11 +27,9 @@ module.exports = {
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.monochroma.driver",
-      "googleServicesFile": process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
+      "googleServicesFile": "./google-services.json",
       "config": {
-        "googleMaps": {
-          "apiKey": process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
-        }
+        "googleMaps": {}
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -76,7 +74,8 @@ module.exports = {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
         }
-      ]
+      ],
+      "@config-plugins/react-native-callkeep"
     ],
     "experiments": {
       "typedRoutes": true,
