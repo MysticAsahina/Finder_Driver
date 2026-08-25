@@ -7,7 +7,7 @@ module.exports = {
     "icon": "./assets/images/icon.png",
     "scheme": "driver",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
