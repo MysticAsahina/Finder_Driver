@@ -1,6 +1,6 @@
 import RNCallKeep from 'react-native-callkeep';
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, BackHandler, AppState, AppStateStatus } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -17,8 +17,18 @@ const ICE_SERVERS = {
 };
 
 export default function PassengerCallScreen() {
+    // Block hardware back button so users don't accidentally leave the call screen
+    useEffect(() => {
+        const backAction = () => {
+            return true;
+        };
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+        return () => backHandler.remove();
+    }, []);
+
     const router = useRouter();
-    const params = useLocalSearchParams<{ isVideo?: string, isReceiving?: string }>();
+    const params = useLocalSearchParams<{ isVideo?: string, isReceiving?: string, uuid?: string }>();
+    const callUUIDRef = useRef<string | null>(params.uuid || null);
     const isInitialVideoCall = params.isVideo === 'true';
     const isReceiving = params.isReceiving === 'true';
 
@@ -32,6 +42,7 @@ export default function PassengerCallScreen() {
     const [passengerName, setPassengerName] = useState('Passenger');
     
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    const localStreamRef = useRef<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [isCallActive, setIsCallActive] = useState(false);
     
@@ -41,7 +52,15 @@ export default function PassengerCallScreen() {
     const pendingCandidates = useRef<any[]>([]);
 
     const [isRemoteVideoOn, setIsRemoteVideoOn] = useState(isInitialVideoCall);
+    const [hasRemoteVideoBeenOn, setHasRemoteVideoBeenOn] = useState(isInitialVideoCall);
     const [callDuration, setCallDuration] = useState(0);
+
+    // Lifecycle & recovery refs
+    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+    const wasVideoOnBeforeBackground = useRef(false);
+    const disconnectTimer = useRef<any>(null);
+    const hasSetupWebRTC = useRef(false);
+    const isVideoOnRef = useRef(isInitialVideoCall);
 
     // Call timer
     useEffect(() => {
@@ -77,6 +96,8 @@ export default function PassengerCallScreen() {
     }, []);
 
     const endCall = () => {
+        if (isEnding.current) return;
+        isEnding.current = true;
         if (rideId && socket) {
             socket.emit('webrtc_end_call', { rideId });
         }
@@ -84,17 +105,45 @@ export default function PassengerCallScreen() {
         router.back();
     };
 
+    const isEnding = useRef(false);
+
     const cleanup = () => {
-        RNCallKeep.endAllCalls();
-        InCallManager.stop();
-        if (localStream) {
-            localStream.getTracks().forEach(t => t.stop());
-            setLocalStream(null);
+        // Clear any pending disconnect timer
+        if (disconnectTimer.current) {
+            clearTimeout(disconnectTimer.current);
+            disconnectTimer.current = null;
         }
-        if (pc.current) {
-            pc.current.close();
-            pc.current = null;
+
+        // Stop InCallManager FIRST to release Android AudioManager call mode
+        try {
+            InCallManager.stop();
+        } catch (e) { console.log('InCallManager stop error:', e); }
+
+        // Properly signal Telecom framework that the call is over
+        try {
+            if (callUUIDRef.current) {
+                RNCallKeep.reportEndCallWithUUID(callUUIDRef.current, 6); // 6 = REMOTE_ENDED
+                RNCallKeep.endCall(callUUIDRef.current);
+            }
+            RNCallKeep.endAllCalls();
+        } catch (e) {
+            console.log('CallKeep cleanup error:', e);
         }
+        
+        try {
+            if (pc.current) {
+                pc.current.close();
+                pc.current = null;
+            }
+        } catch (e) {}
+        
+        try {
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(t => t.stop());
+                setLocalStream(null);
+                localStreamRef.current = null;
+            }
+        } catch (e) {}
     };
 
     useEffect(() => {
@@ -105,10 +154,87 @@ export default function PassengerCallScreen() {
         return () => cleanup();
     }, []);
 
+    // Keep isVideoOnRef in sync so the AppState callback always has the current value
+    useEffect(() => {
+        isVideoOnRef.current = isVideoOn;
+    }, [isVideoOn]);
+
+    // Handle app background/foreground transitions for camera lifecycle
+    useEffect(() => {
+        const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+            const prev = appStateRef.current;
+            appStateRef.current = nextAppState;
+
+            if (prev === 'active' && nextAppState.match(/inactive|background/)) {
+                // ── Going to background ──
+                // Stop video track to release camera (Android 12+ revokes access in background)
+                if (isVideoOnRef.current && localStreamRef.current) {
+                    wasVideoOnBeforeBackground.current = true;
+                    const videoTracks = localStreamRef.current.getVideoTracks();
+                    videoTracks.forEach(t => {
+                        t.enabled = false;
+                        t.stop();
+                    });
+                    // Notify remote peer that our video is temporarily off
+                    if (socket && rideId) {
+                        socket.emit('webrtc_video_toggled', { rideId, isVideoOn: false });
+                    }
+                }
+            } else if (prev.match(/inactive|background/) && nextAppState === 'active') {
+                // ── Coming back to foreground ──
+                if (wasVideoOnBeforeBackground.current && pc.current && localStreamRef.current) {
+                    wasVideoOnBeforeBackground.current = false;
+                    try {
+                        // Re-acquire camera
+                        const newStream = await mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                        const newVideoTrack = newStream.getVideoTracks()[0];
+
+                        // Remove dead tracks from the local stream
+                        const oldVideoTracks = localStreamRef.current.getVideoTracks();
+                        oldVideoTracks.forEach(t => localStreamRef.current!.removeTrack(t));
+
+                        // Add the fresh track to the stream
+                        localStreamRef.current.addTrack(newVideoTrack);
+
+                        // Replace the track on the existing sender (no renegotiation needed)
+                        const senders = pc.current.getSenders();
+                        const videoSender = senders.find(s => s.track?.kind === 'video');
+                        if (videoSender) {
+                            await videoSender.replaceTrack(newVideoTrack);
+                        } else {
+                            // No existing video sender — add track and renegotiate
+                            pc.current.addTrack(newVideoTrack, localStreamRef.current);
+                            const offer = await pc.current.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+                            await pc.current.setLocalDescription(offer);
+                            if (socket && rideId) socket.emit('webrtc_offer', { rideId, offer });
+                        }
+
+                        // Force RTCView re-render
+                        setLocalStream(localStreamRef.current);
+                        setIsVideoOn(true);
+
+                        // Notify remote peer that video is back
+                        if (socket && rideId) {
+                            socket.emit('webrtc_video_toggled', { rideId, isVideoOn: true });
+                        }
+                    } catch (err) {
+                        console.error('Failed to re-acquire camera after foreground:', err);
+                        setIsVideoOn(false);
+                        wasVideoOnBeforeBackground.current = false;
+                    }
+                }
+            }
+        };
+
+        const subscription = AppState.addEventListener('change', handleAppStateChange);
+        return () => subscription.remove();
+    }, [socket, rideId]);
+
     // Setup WebRTC and initiate/answer call
     useEffect(() => {
         if (!rideId || !socket || !isConnected) return;
-
+        if (hasSetupWebRTC.current) return;
+        hasSetupWebRTC.current = true;
         const setupWebRTC = async () => {
             let stream: MediaStream;
             try {
@@ -118,6 +244,7 @@ export default function PassengerCallScreen() {
                 };
                 stream = await mediaDevices.getUserMedia(mediaConstraints);
                 setLocalStream(stream);
+                localStreamRef.current = stream;
             } catch (err) {
                 console.error("Failed to get local stream", err);
                 return;
@@ -125,19 +252,35 @@ export default function PassengerCallScreen() {
 
             const peer = new RTCPeerConnection(ICE_SERVERS);
             pc.current = peer;
-            peer.onnegotiationneeded = async () => {
-                try {
-                    const offer = await peer.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-                    await peer.setLocalDescription(offer);
-                    socket.emit('webrtc_offer', { rideId, offer });
-                } catch (err) {
-                    console.error('onnegotiationneeded error', err);
-                }
-            };
+            // onnegotiationneeded removed to prevent glare
 
             stream.getTracks().forEach(track => {
                 peer.addTrack(track, stream);
             });
+
+            pc.current.oniceconnectionstatechange = () => {
+                const state = pc.current?.iceConnectionState;
+                if (state === 'disconnected') {
+                    // Give ICE time to recover (e.g., brief network blip)
+                    disconnectTimer.current = setTimeout(() => {
+                        if (pc.current?.iceConnectionState !== 'connected' &&
+                            pc.current?.iceConnectionState !== 'completed') {
+                            endCall();
+                        }
+                    }, 8000);
+                } else if (state === 'connected' || state === 'completed') {
+                    if (disconnectTimer.current) {
+                        clearTimeout(disconnectTimer.current);
+                        disconnectTimer.current = null;
+                    }
+                } else if (state === 'failed' || state === 'closed') {
+                    if (disconnectTimer.current) {
+                        clearTimeout(disconnectTimer.current);
+                        disconnectTimer.current = null;
+                    }
+                    endCall();
+                }
+            };
 
             peer.ontrack = (event: any) => {
                 if (event.streams && event.streams[0]) {
@@ -158,7 +301,10 @@ export default function PassengerCallScreen() {
             } else {
                 // We are initiating
                 // Send call initiated. We wait for accept to send offer.
-                socket.emit('webrtc_call_initiated', { rideId, callerName: 'Driver', isVideo: isInitialVideoCall });
+                const callUUID = '11111111-2222-3333-4444-' + Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0');
+                callUUIDRef.current = callUUID;
+                RNCallKeep.startCall(callUUID, passengerName, passengerName, 'number', isInitialVideoCall);
+                socket.emit('webrtc_call_initiated', { callerName: 'Driver', isVideo: isInitialVideoCall, rideId });
             }
         };
 
@@ -176,28 +322,52 @@ export default function PassengerCallScreen() {
         }
     }, [isMuted, localStream]);
     
+
+
     const toggleVideo = async () => {
-        if (!pc.current || !localStream) return;
+        if (!pc.current || !localStreamRef.current) return;
         
         if (isVideoOn) {
-            const videoTracks = localStream.getVideoTracks();
+            // Turn video OFF
+            const videoTracks = localStreamRef.current.getVideoTracks();
             videoTracks.forEach(t => t.enabled = false);
             setIsVideoOn(false);
             if (socket && rideId) socket.emit('webrtc_video_toggled', { rideId, isVideoOn: false });
         } else {
-            const videoTracks = localStream.getVideoTracks();
-            if (videoTracks.length === 0) {
+            // Turn video ON
+            const videoTracks = localStreamRef.current.getVideoTracks();
+            const hasLiveTrack = videoTracks.some(t => t.readyState === 'live');
+
+            if (hasLiveTrack) {
+                // Existing live tracks — just re-enable
+                videoTracks.forEach(t => t.enabled = true);
+            } else {
+                // No live video tracks (either none exist, or they died from backgrounding)
+                // Remove any dead tracks from the stream first
+                videoTracks.forEach(t => localStreamRef.current!.removeTrack(t));
                 try {
                     const newStream = await mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                     const newVideoTrack = newStream.getVideoTracks()[0];
-                    localStream.addTrack(newVideoTrack);
-                    pc.current.addTrack(newVideoTrack, localStream);
-                } catch(e) {
-                    console.error(e);
+                    localStreamRef.current.addTrack(newVideoTrack);
+
+                    // Use replaceTrack if a sender already exists (avoids duplicate transceivers)
+                    const senders = pc.current.getSenders();
+                    const videoSender = senders.find(s => s.track?.kind === 'video');
+                    if (videoSender) {
+                        await videoSender.replaceTrack(newVideoTrack);
+                    } else {
+                        // No existing video sender — add track and renegotiate
+                        pc.current.addTrack(newVideoTrack, localStreamRef.current);
+                        const offer = await pc.current.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+                        await pc.current.setLocalDescription(offer);
+                        if (socket && rideId) socket.emit('webrtc_offer', { rideId, offer });
+                    }
+                    // Force RTCView re-render
+                    setLocalStream(localStreamRef.current);
+                } catch (err) {
+                    console.error("Failed to add video track", err);
                     return;
                 }
-            } else {
-                videoTracks.forEach(t => t.enabled = true);
             }
             setIsVideoOn(true);
             if (socket && rideId) socket.emit('webrtc_video_toggled', { rideId, isVideoOn: true });
@@ -209,9 +379,10 @@ export default function PassengerCallScreen() {
         if (!socket || !isConnected || !rideId) return;
 
         const handleCallAccepted = async () => {
+            if (callUUIDRef.current) RNCallKeep.setCurrentCallActive(callUUIDRef.current);
             if (!pc.current) return;
             try {
-                const offer = await pc.current.createOffer({});
+                const offer = await pc.current.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
                 await pc.current.setLocalDescription(offer);
                 socket.emit('webrtc_offer', { rideId, offer });
                 setIsCallActive(true);
@@ -270,9 +441,14 @@ export default function PassengerCallScreen() {
 
         const handleVideoToggled = (data: { isVideoOn: boolean }) => {
             setIsRemoteVideoOn(data.isVideoOn);
+            if (data.isVideoOn) setHasRemoteVideoBeenOn(true);
         };
 
+
+
         const handleEndCall = () => {
+            if (isEnding.current) return;
+            isEnding.current = true;
             cleanup();
             router.back();
         };
@@ -300,14 +476,16 @@ export default function PassengerCallScreen() {
 
     const hasMounted = useRef(false);
 
-    // Handle Speaker toggle
+    // Toggle speaker
     useEffect(() => {
-        if (!hasMounted.current) {
-            hasMounted.current = true;
-            return;
-        }
-        
         InCallManager.setForceSpeakerphoneOn(isSpeaker);
+        if (callUUIDRef.current) {
+            try {
+                RNCallKeep.toggleAudioRouteSpeaker(callUUIDRef.current, isSpeaker);
+            } catch (err) {
+                console.warn('CallKeep speaker toggle failed', err);
+            }
+        }
     }, [isSpeaker]);
 
     // Initialize remote video state when incoming call is a video call
@@ -330,16 +508,19 @@ export default function PassengerCallScreen() {
 
                 {/* Main Avatar / Video Area */}
                 <View style={styles.avatarContainer}>
-                    {isRemoteVideoOn && remoteStream ? (
-                        <View style={styles.videoPlaceholder}>
+                    {remoteStream && (isRemoteVideoOn || hasRemoteVideoBeenOn) && (
+                        <View style={[styles.videoPlaceholder, { display: isRemoteVideoOn ? 'flex' : 'none' }]}>
                             <RTCView 
+                                key={remoteStream.toURL()}
                                 streamURL={remoteStream.toURL()} 
                                 style={{ width: '100%', height: '100%', borderRadius: 24 }} 
                                 objectFit="cover" 
-                                zOrder={2}
+                                zOrder={1}
                             />
                         </View>
-                    ) : (
+                    )}
+                    
+                    {(!isRemoteVideoOn || !remoteStream) && (
                         <View style={styles.audioAvatar}>
                             <Text style={styles.avatarInitial}>{passengerName.charAt(0)}</Text>
                         </View>
@@ -348,11 +529,12 @@ export default function PassengerCallScreen() {
                     {isVideoOn && localStream && (
                         <View style={styles.localVideoWrap}>
                             <RTCView 
+                                key={localStream.toURL()}
                                 streamURL={localStream.toURL()} 
                                 style={{ width: '100%', height: '100%' }} 
                                 objectFit="cover" 
                                 mirror={true}
-                                zOrder={1}
+                                zOrder={2}
                             />
                         </View>
                     )}
