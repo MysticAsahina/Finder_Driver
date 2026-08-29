@@ -92,24 +92,27 @@ export default function PassengerChatScreen() {
     }, [params.rideId]);
 
     useEffect(() => {
-        if (socket && isConnected) {
-            socket.on('receive_ride_message', (msg) => {
-                const newMsg: Message = {
-                    id: msg.id,
-                    text: msg.text,
-                    isUser: msg.from === 'driver',
-                    time: msg.time,
-                    mediaUrl: msg.mediaUrl,
-                    mediaType: msg.mediaType
-                };
-                setMessages(prev => {
-                    if (prev.find(m => m.id === newMsg.id)) return prev;
-                    return [...prev, newMsg];
-                });
+        if (!socket || !isConnected) return;
+
+        const handleReceiveMessage = (msg: any) => {
+            const newMsg: Message = {
+                id: msg.id,
+                text: msg.text,
+                isUser: msg.from === 'driver',
+                time: msg.time,
+                mediaUrl: msg.mediaUrl,
+                mediaType: msg.mediaType
+            };
+            setMessages(prev => {
+                if (prev.find(m => m.id === newMsg.id)) return prev;
+                return [...prev, newMsg];
             });
-        }
+        };
+
+        socket.on('receive_ride_message', handleReceiveMessage);
+
         return () => {
-            socket?.off('receive_ride_message');
+            socket.off('receive_ride_message', handleReceiveMessage);
         };
     }, [socket, isConnected]);
 

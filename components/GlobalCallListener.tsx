@@ -65,29 +65,33 @@ export default function GlobalCallListener() {
     useEffect(() => {
         if (!socket || !isConnected) return;
 
-        socket.on('webrtc_call_initiated', (data: { callerName: string; isVideo: boolean; rideId: string }) => {
+        const handleCallInitiated = (data: { callerName: string; isVideo: boolean; rideId: string }) => {
             if (pathname === '/call-driver' || pathname === '/passenger-call') return;
             
             // Trigger native UI (Because selfManaged=true, this just notifies telecom of the audio state!)
             const callUUID = '11111111-2222-3333-4444-' + Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0');
             RNCallKeep.displayIncomingCall(callUUID, data.callerName, data.callerName, 'number', data.isVideo);
             setIncomingCall({ ...data, uuid: callUUID });
-        });
+        };
 
-        socket.on('webrtc_call_denied', () => {
+        const handleCallDenied = () => {
             if (incomingCall?.uuid) RNCallKeep.endAllCalls();
             setIncomingCall(null);
-        });
+        };
 
-        socket.on('webrtc_end_call', () => {
+        const handleEndCall = () => {
             if (incomingCall?.uuid) RNCallKeep.endAllCalls();
             setIncomingCall(null);
-        });
+        };
+
+        socket.on('webrtc_call_initiated', handleCallInitiated);
+        socket.on('webrtc_call_denied', handleCallDenied);
+        socket.on('webrtc_end_call', handleEndCall);
 
         return () => {
-            socket.off('webrtc_call_initiated');
-            socket.off('webrtc_call_denied');
-            socket.off('webrtc_end_call');
+            socket.off('webrtc_call_initiated', handleCallInitiated);
+            socket.off('webrtc_call_denied', handleCallDenied);
+            socket.off('webrtc_end_call', handleEndCall);
         };
     }, [socket, isConnected, pathname, incomingCall]);
 

@@ -108,28 +108,37 @@ export default function PassengerCallScreen() {
 
     const isEnding = useRef(false);
 
+    const isCleanedUp = useRef(false);
+
     const cleanup = () => {
+        if (isCleanedUp.current) return;
+        isCleanedUp.current = true;
+
         // Clear any pending disconnect timer
         if (disconnectTimer.current) {
             clearTimeout(disconnectTimer.current);
             disconnectTimer.current = null;
         }
 
-        // Stop InCallManager FIRST to release Android AudioManager call mode
+        // Properly signal Telecom framework that the call is over FIRST
+        try {
+            if (callUUIDRef.current) {
+                if (Platform.OS === 'ios') {
+                    RNCallKeep.reportEndCallWithUUID(callUUIDRef.current, 6); // 6 = REMOTE_ENDED
+                }
+                RNCallKeep.endCall(callUUIDRef.current);
+            } else {
+                RNCallKeep.endAllCalls();
+            }
+        } catch (e) {
+            console.log('CallKeep endCall error:', e);
+            try { RNCallKeep.endAllCalls(); } catch(err){}
+        }
+
+        // Stop InCallManager AFTER telecom has been notified
         try {
             InCallManager.stop();
         } catch (e) { console.log('InCallManager stop error:', e); }
-
-        // Properly signal Telecom framework that the call is over
-        try {
-            if (callUUIDRef.current) {
-                RNCallKeep.reportEndCallWithUUID(callUUIDRef.current, 6); // 6 = REMOTE_ENDED
-                RNCallKeep.endCall(callUUIDRef.current);
-            }
-            RNCallKeep.endAllCalls();
-        } catch (e) {
-            console.log('CallKeep cleanup error:', e);
-        }
         
         try {
             if (pc.current) {
@@ -299,6 +308,9 @@ export default function PassengerCallScreen() {
                 // If receiving, we already accepted. We just wait for offer.
                 setIsCallActive(true);
                 socket.emit('webrtc_call_accepted', { rideId });
+                if (isInitialVideoCall) {
+                    socket.emit('webrtc_video_toggled', { rideId, isVideoOn: true });
+                }
             } else {
                 // We are initiating
                 // Send call initiated. We wait for accept to send offer.
