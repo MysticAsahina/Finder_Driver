@@ -38,7 +38,13 @@ module.exports = {
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_PHONE_NUMBERS",
+        "READ_PHONE_STATE",
+        "CALL_PHONE",
+        "MANAGE_OWN_CALLS"
       ]
     },
     "web": {

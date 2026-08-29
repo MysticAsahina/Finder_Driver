@@ -61,6 +61,7 @@ export default function PassengerCallScreen() {
     const disconnectTimer = useRef<any>(null);
     const hasSetupWebRTC = useRef(false);
     const isVideoOnRef = useRef(isInitialVideoCall);
+    const [localStreamRevision, setLocalStreamRevision] = useState(0);
 
     // Call timer
     useEffect(() => {
@@ -209,8 +210,8 @@ export default function PassengerCallScreen() {
                             if (socket && rideId) socket.emit('webrtc_offer', { rideId, offer });
                         }
 
-                        // Force RTCView re-render
-                        setLocalStream(localStreamRef.current);
+                        // Force RTCView remount by bumping revision (same object ref won't trigger re-render)
+                        setLocalStreamRevision(r => r + 1);
                         setIsVideoOn(true);
 
                         // Notify remote peer that video is back
@@ -362,8 +363,8 @@ export default function PassengerCallScreen() {
                         await pc.current.setLocalDescription(offer);
                         if (socket && rideId) socket.emit('webrtc_offer', { rideId, offer });
                     }
-                    // Force RTCView re-render
-                    setLocalStream(localStreamRef.current);
+                    // Force RTCView remount by bumping revision
+                    setLocalStreamRevision(r => r + 1);
                 } catch (err) {
                     console.error("Failed to add video track", err);
                     return;
@@ -529,7 +530,7 @@ export default function PassengerCallScreen() {
                     {isVideoOn && localStream && (
                         <View style={styles.localVideoWrap}>
                             <RTCView 
-                                key={localStream.toURL()}
+                                key={`${localStream.toURL()}-${localStreamRevision}`}
                                 streamURL={localStream.toURL()} 
                                 style={{ width: '100%', height: '100%' }} 
                                 objectFit="cover" 

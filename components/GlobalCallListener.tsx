@@ -4,6 +4,8 @@ import { SocketContext } from '../context/SocketContext';
 import RNCallKeep from 'react-native-callkeep';
 import IncomingCallModal from './IncomingCallModal';
 
+import { PermissionsAndroid } from 'react-native';
+
 export default function GlobalCallListener() {
     const { socket, isConnected } = useContext(SocketContext);
     const router = useRouter();
@@ -19,7 +21,7 @@ export default function GlobalCallListener() {
                 alertDescription: 'This application needs to access your phone accounts',
                 cancelButton: 'Cancel',
                 okButton: 'ok',
-                additionalPermissions: [],
+                additionalPermissions: [PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS],
                 selfManaged: true // Uses our own IncomingCallModal UI instead of system Phone UI!
             }
         };

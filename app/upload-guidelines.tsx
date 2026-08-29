@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '@/utils/axios';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 const GREEN = '#22c55e';
 const RED = '#e53935';
@@ -330,6 +331,17 @@ function extractExpirationDate(lines: string[], fullText: string): string | null
   return pickBestExpirationDate(fallbackCandidates);
 }
 
+const OCR_MAX_DIMENSION = 1500;
+
+async function prepareImageForOcr(uri: string): Promise<string> {
+  const result = await manipulateAsync(
+    uri,
+    [{ resize: { width: OCR_MAX_DIMENSION } }],
+    { compress: 0.9, format: SaveFormat.JPEG },
+  );
+  return result.uri;
+}
+
 async function recognizeLicenseDetails(localUri: string): Promise<ExtractedLicenseData> {
   let TextRecognitionModule: { recognize: (imageUri: string) => Promise<MlKitTextRecognitionResult> };
 
@@ -473,7 +485,8 @@ export default function UploadGuidelinesScreen() {
       setPhase(isLicenseFront ? 'recognizing' : 'uploading');
 
       if (isLicenseFront) {
-        extractedLicenseData = await recognizeLicenseDetails(localUri);
+        const ocrUri = await prepareImageForOcr(localUri);
+        extractedLicenseData = await recognizeLicenseDetails(ocrUri);
       }
 
       setPhase('uploading');
