@@ -18,6 +18,16 @@ import api from '@/utils/axios';
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128;
 
+function validatePasswordPolicy(password: string): string | null {
+    if (password.length < MIN_PASSWORD) return `Password must be at least ${MIN_PASSWORD} characters.`;
+    if (password.length > MAX_PASSWORD) return 'Password is too long.';
+    if (!/(?=.*[a-z])/.test(password)) return "Password must contain at least one lowercase letter.";
+    if (!/(?=.*[A-Z])/.test(password)) return "Password must contain at least one uppercase letter.";
+    if (!/(?=.*\d)/.test(password)) return "Password must contain at least one number.";
+    if (!/(?=.*[^A-Za-z0-9])/.test(password)) return "Password must contain at least one special character.";
+    return null;
+}
+
 type Step = 'mobile' | 'otp' | 'newPassword';
 
 export default function ForgotPasswordScreen() {
@@ -75,9 +85,8 @@ export default function ForgotPasswordScreen() {
     // ── Step 3: reset password ────────────────────────────────────────────────
     const handleResetPassword = async () => {
         setError(null);
-        if (!newPassword)                        return setError('Password is required.');
-        if (newPassword.length < MIN_PASSWORD)   return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
-        if (newPassword.length > MAX_PASSWORD)   return setError('Password is too long.');
+        const passwordError = validatePasswordPolicy(newPassword);
+        if (passwordError)                       return setError(passwordError);
         if (newPassword !== confirmPassword)     return setError('Passwords do not match.');
         setLoading(true);
         try {

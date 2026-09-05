@@ -67,6 +67,15 @@ api.interceptors.response.use(
         }
 
         if (error.response?.status === 401 && !originalRequest._retry) {
+            if (error.response?.data?.message === "Session expired due to login on another device.") {
+                const { Alert } = require('react-native');
+                Alert.alert("Session Expired", "Your account has been logged in on another device.");
+                await SecureStore.deleteItemAsync('refreshToken');
+                setAxiosAccessToken(null);
+                router.replace('/login');
+                return Promise.reject(error);
+            }
+
             if (isRefreshing) {
                 return new Promise(function (resolve, reject) {
                     failedQueue.push({ resolve, reject });
@@ -110,10 +119,16 @@ api.interceptors.response.use(
                 
                 processQueue(null, newAccessToken);
                 return api(originalRequest);
-            } catch (err) {
+            } catch (err: any) {
                 processQueue(err, null);
                 await SecureStore.deleteItemAsync('refreshToken');
                 setAxiosAccessToken(null);
+
+                if (err.response?.status === 401 && err.response?.data?.message === "Session expired due to login on another device.") {
+                    const { Alert } = require('react-native');
+                    Alert.alert("Session Expired", "Your account has been logged in on another device.");
+                }
+
                 router.replace('/login');
                 return Promise.reject(err);
             } finally {
