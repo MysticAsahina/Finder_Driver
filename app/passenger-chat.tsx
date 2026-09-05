@@ -116,41 +116,81 @@ export default function PassengerChatScreen() {
         };
     }, [socket, isConnected]);
 
-    const handlePickMedia = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images', 'videos'],
-                quality: 0.8,
-                videoMaxDuration: 60,
-            });
-            if (!result.canceled && result.assets && result.assets.length > 0) {
-                const asset = result.assets[0];
-                const mediaType = asset.type === 'video' ? 'video' : 'image';
-                
-                if (asset.fileSize) {
-                    const sizeMB = asset.fileSize / (1024 * 1024);
-                    if (mediaType === 'image' && sizeMB > 5) {
-                        Alert.alert('Error', 'Image must be smaller than 5MB');
-                        return;
-                    }
-                    if (mediaType === 'video' && sizeMB > 20) {
-                        Alert.alert('Error', 'Video must be smaller than 20MB');
-                        return;
-                    }
+    const processMediaResult = (result: ImagePicker.ImagePickerResult) => {
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            const asset = result.assets[0];
+            const mediaType = asset.type === 'video' ? 'video' : 'image';
+            
+            if (asset.fileSize) {
+                const sizeMB = asset.fileSize / (1024 * 1024);
+                if (mediaType === 'image' && sizeMB > 5) {
+                    Alert.alert('Error', 'Image must be smaller than 5MB');
+                    return;
                 }
-                
-                let fileName = asset.fileName;
-                if (!fileName) {
-                    const ext = mediaType === 'video' ? 'mp4' : 'jpg';
-                    fileName = `upload.${ext}`;
+                if (mediaType === 'video' && sizeMB > 20) {
+                    Alert.alert('Error', 'Video must be smaller than 20MB');
+                    return;
                 }
-                
-                setPendingMedia({ uri: asset.uri, mediaType, fileName });
             }
-        } catch (error) {
-            console.error('Error picking media:', error);
-            Alert.alert('Error', 'Failed to pick media');
+            
+            let fileName = asset.fileName;
+            if (!fileName) {
+                const ext = mediaType === 'video' ? 'mp4' : 'jpg';
+                fileName = `upload.${ext}`;
+            }
+            
+            setPendingMedia({ uri: asset.uri, mediaType, fileName });
         }
+    };
+
+    const handlePickMedia = () => {
+        Alert.alert(
+            "Attach Media",
+            "Choose a media source",
+            [
+                {
+                    text: "Camera",
+                    onPress: async () => {
+                        try {
+                            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                            if (status !== 'granted') {
+                                Alert.alert('Permission needed', 'Sorry, we need camera permissions to make this work!');
+                                return;
+                            }
+                            const result = await ImagePicker.launchCameraAsync({
+                                mediaTypes: ['images', 'videos'],
+                                quality: 0.8,
+                                videoMaxDuration: 60,
+                            });
+                            processMediaResult(result);
+                        } catch (error) {
+                            console.error('Error opening camera:', error);
+                            Alert.alert('Error', 'Failed to open camera');
+                        }
+                    }
+                },
+                {
+                    text: "Gallery",
+                    onPress: async () => {
+                        try {
+                            const result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ['images', 'videos'],
+                                quality: 0.8,
+                                videoMaxDuration: 60,
+                            });
+                            processMediaResult(result);
+                        } catch (error) {
+                            console.error('Error opening gallery:', error);
+                            Alert.alert('Error', 'Failed to open gallery');
+                        }
+                    }
+                },
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                }
+            ]
+        );
     };
 
     const sendMessage = async () => {
