@@ -15,6 +15,7 @@ interface TripInfo {
     pickup: string;
     dropoff: string;
     date: string;
+    rawDate: string;
     fare?: number;
     refId: string;
     duration: string;
@@ -51,9 +52,11 @@ function EmptyState({ label }: { label: string }) {
 }
 
 export default function ActivityScreen() {
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabKey>('requests');
     const [selectedTrip, setSelectedTrip] = useState<TripInfo | null>(null);
     const [loading, setLoading] = useState(true);
+    const [creatingReport, setCreatingReport] = useState(false);
 
     const [currentTrip, setCurrentTrip] = useState<TripInfo | null>(null);
     const [completedTrips, setCompletedTrips] = useState<TripInfo[]>([]);
@@ -74,12 +77,45 @@ export default function ActivityScreen() {
             pickup: r.pickup?.address || 'Unknown pickup',
             dropoff: r.dropoff?.address || 'Unknown dropoff',
             date: formatDate(r.createdAt),
+            rawDate: r.tripCompletedAt || r.createdAt,
             fare: r.fare,
             refId: generateRefId(r._id),
             duration: r.actualDurationMins ? `${Math.round(r.actualDurationMins * 10) / 10} minutes` : (r.durationMins ? `${Math.round(r.durationMins * 10) / 10} minutes` : '–'),
             distance: r.distanceKm ? `${r.distanceKm.toFixed(1)} Km` : '–',
             status: r.status || 'unknown'
         };
+    };
+
+    const handleReport = (trip: TripInfo) => {
+        const { Alert } = require('react-native');
+        if (creatingReport) return;
+        
+        Alert.alert(
+            "Report Issue",
+            `Are you sure you want to report an issue for ${trip.refId}? This will open a new support ticket.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                { 
+                    text: "Report", 
+                    style: "destructive",
+                    onPress: async () => {
+                        setCreatingReport(true);
+                        try {
+                            const res = await api.post('/support/tickets', { 
+                                subject: "Ride Report", 
+                                rideId: trip.id 
+                            });
+                            setSelectedTrip(null);
+                            router.push(`/support-chat?ticketId=${res.data.ticket._id}`);
+                        } catch (err: any) {
+                            Alert.alert("Error", err.response?.data?.message || "Failed to create support ticket.");
+                        } finally {
+                            setCreatingReport(false);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     useFocusEffect(
@@ -217,6 +253,13 @@ export default function ActivityScreen() {
                                         <Text style={styles.locationText}>{selectedTrip.dropoff}</Text>
                                     </View>
                                 </View>
+
+                                {/* Report Button */}
+                                {(Date.now() - new Date(selectedTrip.rawDate).getTime()) <= (7 * 24 * 60 * 60 * 1000) && (
+                                    <TouchableOpacity style={styles.reportBtn} onPress={() => handleReport(selectedTrip)} activeOpacity={0.8}>
+                                        <Text style={styles.reportBtnTxt}>Report Issue</Text>
+                                    </TouchableOpacity>
+                                )}
                             </>
                         )}
                     </TouchableOpacity>
@@ -507,6 +550,20 @@ const styles = StyleSheet.create({
     modalRoute: {
         flexDirection: 'row',
         paddingTop: 4,
+    },
+    reportBtn: {
+        marginTop: 20,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ff4444',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    reportBtnTxt: {
+        color: '#ff4444',
+        fontWeight: '700',
+        fontSize: 14,
     },
     empty: { alignItems: 'center', paddingTop: 60 },
     emptyIcon: { fontSize: 36, marginBottom: 10 },
