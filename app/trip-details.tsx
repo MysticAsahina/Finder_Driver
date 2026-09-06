@@ -23,16 +23,16 @@ export default function TripDetailsScreen() {
         dropoffFull?: string;
     }>();
 
-    const passengerName = params.name || 'Justine Kyle Castro';
-    const fare = params.fare || '70.00';
-    const pickup = params.pickup || 'SM City Cabanatuan';
-    const dropoff = params.dropoff || 'Freedom Park, Padre Burgos, Cabanatuan City';
+    const passengerName = params.name || 'John Doe';
+    const fare = params.fare || '0.00';
+    const pickup = params.pickup || 'Pickup Location';
+    const dropoff = params.dropoff || 'Dropoff Location';
     const pickupFull =
         params.pickupFull ||
-        'SM City Cabanatuan\nBarangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
+        'Pickup Address';
     const dropoffFull =
         params.dropoffFull ||
-        'Freedom Park, Barangay H Concepcion, Along Maharlika Hwy, Cabanatuan City, 3100 Nueva Ecija';
+        'Dropoff Address';
 
     return (
         <SafeAreaView style={styles.container}>
@@ -111,7 +111,7 @@ export default function TripDetailsScreen() {
                     activeOpacity={0.85}
                     onPress={() =>
                         router.push({
-                            pathname: '/pickup-passenger',
+                            pathname: '/pickup-passenger' as any,
                             params: {
                                 name: passengerName,
                                 pickup: pickup,

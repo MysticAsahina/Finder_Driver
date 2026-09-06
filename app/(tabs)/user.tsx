@@ -2,6 +2,7 @@ import { AuthContext } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import * as Location from 'expo-location';
 import React, { useContext } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +41,11 @@ export default function UserScreen() {
                             await api.post('/auth/logout', { refreshToken }).catch(() => { }); // non-fatal
                         }
                         await SecureStore.deleteItemAsync('refreshToken');
+                        try {
+                            await Location.stopLocationUpdatesAsync('background-location-task');
+                        } catch (err) {
+                            // ignore if not running
+                        }
                         setAccessToken(null);
                         setUser(null);
                         router.replace('/login');

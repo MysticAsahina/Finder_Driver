@@ -60,7 +60,7 @@ export default function RequestModal({ ride, onAccept, onDecline, timeLeft }: Re
             <Ionicons name="location" size={20} color={ACCENT} />
             <View style={styles.locationTextContainer}>
               <Text style={styles.locationLabel}>PICKUP</Text>
-              <Text style={styles.locationValue} numberOfLines={2}>{ride.pickup.address}</Text>
+              <Text style={styles.locationValue} numberOfLines={2}>{ride.pickup?.address}</Text>
             </View>
           </View>
           
@@ -70,7 +70,7 @@ export default function RequestModal({ ride, onAccept, onDecline, timeLeft }: Re
             <Ionicons name="flag" size={20} color={ACCENT} />
             <View style={styles.locationTextContainer}>
               <Text style={styles.locationLabel}>DROP-OFF</Text>
-              <Text style={styles.locationValue} numberOfLines={2}>{ride.dropoff.address}</Text>
+              <Text style={styles.locationValue} numberOfLines={2}>{ride.dropoff?.address}</Text>
             </View>
           </View>
         </View>
@@ -82,7 +82,7 @@ export default function RequestModal({ ride, onAccept, onDecline, timeLeft }: Re
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Est. Fare</Text>
-            <Text style={styles.statValue}>₱{ride.fare.toFixed(2)}</Text>
+            <Text style={styles.statValue}>₱{Number(ride.fare ?? 0).toFixed(2)}</Text>
           </View>
         </View>
 
