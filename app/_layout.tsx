@@ -183,6 +183,14 @@ export default function RootLayout() {
             name="waiting-approval"
             options={{ headerShown: false, animation: 'fade' }}
           />
+          <Stack.Screen
+            name="passenger-call"
+            options={{ headerShown: false, animation: 'fade' }}
+          />
+          <Stack.Screen
+            name="forgot-password"
+            options={{ headerShown: false, animation: 'fade' }}
+          />
         </Stack>
         <StatusBar style="auto" />
           </ThemeProvider>

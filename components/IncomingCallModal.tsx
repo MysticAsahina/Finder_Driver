@@ -20,13 +20,13 @@ export default function IncomingCallModal({
             <SafeAreaView style={styles.container}>
                 <View style={styles.content}>
                     <View style={styles.topSection}>
-                        <Text style={styles.name}>{callerName}</Text>
+                        <Text style={styles.name}>{callerName || 'Unknown User'}</Text>
                         <Text style={styles.status}>Incoming {isVideo ? 'Video' : 'Audio'} Call...</Text>
                     </View>
                     
                     <View style={styles.avatarContainer}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarInitial}>{callerName.charAt(0)}</Text>
+                            <Text style={styles.avatarInitial}>{callerName?.charAt(0) || 'U'}</Text>
                         </View>
                     </View>
                     
