@@ -54,6 +54,8 @@ async function submitApplication(router: ReturnType<typeof useRouter>) {
         confirmPassword:  store.confirmPassword,
         mpin:             store.mpin,
         cloudinaryPublicIds: store.cloudinaryPublicIds,
+    }, {
+        headers: { Authorization: `Bearer ${token}` }
     });
 
     const data = res.data;
