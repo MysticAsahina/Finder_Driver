@@ -12,6 +12,13 @@ import AppLifecycleObserver from '@/components/AppLifecycleObserver';
 import GlobalCallListener from '@/components/GlobalCallListener';
 import '@/utils/backgroundLocation';
 
+if (!__DEV__) {
+  console.log = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+}
+
 // @ts-ignore
 global.isRideChatActive = false;
 
