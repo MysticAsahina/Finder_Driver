@@ -12,7 +12,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (data) {
     const { locations } = data as any;
     if (locations && locations.length > 0) {
-      const location = locations[0];
+      const location = locations[locations.length - 1];
       
       try {
         await api.post('/driver/status', {

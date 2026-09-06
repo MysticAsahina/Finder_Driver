@@ -1,6 +1,6 @@
 module.exports = {
   "expo": {
-    "name": "driver",
+    "name": "FINDER Driver",
     "slug": "driver",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -53,6 +53,7 @@ module.exports = {
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
