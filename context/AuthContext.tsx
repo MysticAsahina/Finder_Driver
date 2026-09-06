@@ -34,16 +34,6 @@ export const AuthContext = createContext<AuthContextType>({
   setEmergencyContactState: () => { },
 });
 
-const DEFAULT_USER = {
-  firstName: 'Marcelino',
-  lastName: 'Zafra',
-  mobileNumber: '+63 9295624051',
-  email: '',
-};
-
-// MICHAEL
-
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
