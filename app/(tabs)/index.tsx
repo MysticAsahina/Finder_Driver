@@ -23,6 +23,7 @@ import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-g
 
 const ACCENT = Colors.light.tint;
 const ONLINE_GREEN = '#22c55e';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const SHEET_EXPANDED_HEIGHT = 460;
 const SHEET_COLLAPSED_HEIGHT = 160;
@@ -116,10 +117,25 @@ export default function HomeScreen() {
 
   // Ensure driver joins the ride room whenever connected and has a ride
   useEffect(() => {
-    if (isConnected && socket && currentRide?._id) {
+    if (!socket || !currentRide?._id) return;
+
+    // Join immediately
+    if (isConnected) {
       socket.emit('join_ride', { rideId: currentRide._id });
     }
-  }, [isConnected, socket, currentRide?._id]);
+
+    // Direct listener for reconnections (bypasses React state delays after OS sleep)
+    const handleReconnect = () => {
+      console.log('Driver socket reconnected! Re-joining ride room...');
+      socket.emit('join_ride', { rideId: currentRide._id });
+    };
+
+    socket.on('connect', handleReconnect);
+
+    return () => {
+      socket.off('connect', handleReconnect);
+    };
+  }, [socket, currentRide?._id, isConnected]);
 
   // Listen to Socket events
   useEffect(() => {
@@ -659,12 +675,16 @@ export default function HomeScreen() {
                         ? { latitude: pLat, longitude: pLng }
                         : { latitude: dLat, longitude: dLng }
                 }
-                apikey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
+                apikey="backend-proxy"
+                directionsServiceBaseUrl={`${API_URL}/maps/api/directions/json`}
                 strokeWidth={4}
                 strokeColor={ACCENT}
                 onReady={result => {
                     setRouteDistance(result.distance);
                     setRouteDuration(result.duration);
+                }}
+                onError={(errorMessage) => {
+                    console.error('MapViewDirections Error:', errorMessage);
                 }}
             />
         )}
