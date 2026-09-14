@@ -669,6 +669,7 @@ export default function HomeScreen() {
 
         {location && (rideState === 'pickup' || rideState === 'trip_started') && (
             <MapViewDirections
+                key={rideState}
                 origin={{ latitude: location.coords.latitude, longitude: location.coords.longitude }}
                 destination={
                     rideState === 'pickup'
