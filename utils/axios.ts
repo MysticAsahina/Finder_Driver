@@ -6,6 +6,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const api = axios.create({
     baseURL: API_URL,
+    timeout: 15000,
 });
 
 let isRefreshing = false;
@@ -105,7 +106,7 @@ api.interceptors.response.use(
             try {
                 const response = await axios.post(`${API_URL}/auth/refresh`, {
                     refreshToken
-                });
+                }, { timeout: 15000 });
 
                 const newAccessToken = response.data.accessToken;
                 const newRefreshToken = response.data.refreshToken;
