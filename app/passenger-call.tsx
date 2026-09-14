@@ -9,6 +9,7 @@ import { SocketContext } from '../context/SocketContext';
 import { AuthContext } from '../context/AuthContext';
 import api from '@/utils/axios';
 import InCallManager from '@novartc/react-native-incall-manager';
+import { ensureCallPermission } from '../utils/callPermissions';
 
 const ICE_SERVERS = {
     iceServers: [
@@ -313,10 +314,20 @@ export default function PassengerCallScreen() {
                 }
             } else {
                 // We are initiating
+                const hasPermission = await ensureCallPermission();
+                if (!hasPermission) {
+                    cleanup();
+                    router.back();
+                    return;
+                }
                 // Send call initiated. We wait for accept to send offer.
                 const callUUID = '11111111-2222-3333-4444-' + Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0');
                 callUUIDRef.current = callUUID;
-                RNCallKeep.startCall(callUUID, passengerName, passengerName, 'number', isInitialVideoCall);
+                try {
+                    RNCallKeep.startCall(callUUID, passengerName, passengerName, 'number', isInitialVideoCall);
+                } catch (e) {
+                    console.warn('CallKeep startCall failed:', e);
+                }
                 socket.emit('webrtc_call_initiated', { callerName: 'Driver', isVideo: isInitialVideoCall, rideId });
             }
         };

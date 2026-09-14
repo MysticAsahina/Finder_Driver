@@ -5,6 +5,7 @@ import RNCallKeep from 'react-native-callkeep';
 import IncomingCallModal from './IncomingCallModal';
 
 import { PermissionsAndroid } from 'react-native';
+import { ensureCallPermission } from '../utils/callPermissions';
 
 export default function GlobalCallListener() {
     const { socket, isConnected } = useContext(SocketContext);
@@ -65,12 +66,20 @@ export default function GlobalCallListener() {
     useEffect(() => {
         if (!socket || !isConnected) return;
 
-        const handleCallInitiated = (data: { callerName: string; isVideo: boolean; rideId: string }) => {
+        const handleCallInitiated = async (data: { callerName: string; isVideo: boolean; rideId: string }) => {
             if (pathname === '/call-driver' || pathname === '/passenger-call') return;
             
-            // Trigger native UI (Because selfManaged=true, this just notifies telecom of the audio state!)
             const callUUID = '11111111-2222-3333-4444-' + Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0');
-            RNCallKeep.displayIncomingCall(callUUID, data.callerName, data.callerName, 'number', data.isVideo);
+            
+            // Only notify Telecom framework if permission is granted; always show our own modal
+            const hasPermission = await ensureCallPermission();
+            if (hasPermission) {
+                try {
+                    RNCallKeep.displayIncomingCall(callUUID, data.callerName, data.callerName, 'number', data.isVideo);
+                } catch (e) {
+                    console.warn('CallKeep displayIncomingCall failed:', e);
+                }
+            }
             setIncomingCall({ ...data, uuid: callUUID });
         };
 
@@ -95,9 +104,16 @@ export default function GlobalCallListener() {
         };
     }, [socket, isConnected, pathname, incomingCall]);
 
-    const handleAccept = () => {
+    const handleAccept = async () => {
         if (incomingCall) {
-            RNCallKeep.answerIncomingCall(incomingCall.uuid); // Notify telecom we answered
+            const hasPermission = await ensureCallPermission();
+            if (hasPermission) {
+                try {
+                    RNCallKeep.answerIncomingCall(incomingCall.uuid);
+                } catch (e) {
+                    console.warn('CallKeep answerIncomingCall failed:', e);
+                }
+            }
             const { isVideo } = incomingCall;
             setIncomingCall(null);
             router.push(`/passenger-call?isVideo=${isVideo}&isReceiving=true&uuid=${incomingCall.uuid}`);
@@ -106,7 +122,11 @@ export default function GlobalCallListener() {
 
     const handleDecline = () => {
         if (incomingCall) {
-            RNCallKeep.rejectCall(incomingCall.uuid); // Notify telecom we declined
+            try {
+                RNCallKeep.rejectCall(incomingCall.uuid);
+            } catch (e) {
+                console.warn('CallKeep rejectCall failed:', e);
+            }
             const { rideId } = incomingCall;
             if (socket) {
                 socket.emit('webrtc_call_denied', { rideId });
