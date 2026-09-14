@@ -677,6 +677,7 @@ export default function HomeScreen() {
                 }
                 apikey="backend-proxy"
                 directionsServiceBaseUrl={`${API_URL}/maps/api/directions/json`}
+                fetchHeaders={{ Authorization: `Bearer ${accessToken}` }}
                 strokeWidth={4}
                 strokeColor={ACCENT}
                 onReady={result => {
