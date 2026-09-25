@@ -1,22 +1,22 @@
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView, AppState } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
+import MapView, { Marker, MapViewDirections } from '@/components/MapWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import * as Location from 'expo-location';
-import { AuthContext } from '@/context/AuthContext';
+import { AuthContext, DEV_BYPASS_AUTH } from '@/context/AuthContext';
 import { SocketContext } from '@/context/SocketContext';
 import RequestModal from '@/components/RequestModal';
+import DiscountPassengerModal from '@/components/DiscountPassengerModal';
+import RideCancelledModal from '@/components/RideCancelledModal';
 import api from '@/utils/axios';
 
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withTiming,
-    withSpring,
     runOnJS,
 } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -45,6 +45,11 @@ export default function HomeScreen() {
   const [showEarnings, setShowEarnings] = useState(false);
   const [dailyEarnings, setDailyEarnings] = useState<number | null>(null);
   const [loadingEarnings, setLoadingEarnings] = useState(false);
+
+  // Discount passenger modal
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showRideCancelledModal, setShowRideCancelledModal] = useState(false);
+  const [cancelledReason, setCancelledReason] = useState('Change of plans');
 
   const insets = useSafeAreaInsets();
   const toastOpacity = useRef(new RNAnimated.Value(0)).current;
@@ -154,10 +159,8 @@ export default function HomeScreen() {
     
     socket.on('ride_cancelled', (data: any) => {
         if (rideState !== 'idle') {
-            Alert.alert('Ride Cancelled', data?.reason || 'The passenger has cancelled the ride.');
-            setRideState('idle');
-            setCurrentRide(null);
-            snapToCollapsed();
+            setCancelledReason(data?.reason || 'The passenger has cancelled the ride.');
+            setShowRideCancelledModal(true);
         }
     });
 
@@ -404,6 +407,27 @@ export default function HomeScreen() {
       socket?.emit('join_ride', { rideId });
 
     } catch (err: any) {
+      if (DEV_BYPASS_AUTH) {
+        const acceptedRide = incomingRide || {
+          _id: rideId || 'dev-ride-mock-01',
+          fare: '85.00',
+          pickup: {
+            address: 'PHINMA Araullo University South, Cabanatuan',
+            coordinates: { coordinates: [120.9601, 15.4865] },
+          },
+          dropoff: {
+            address: 'Del Pilar St, Cabanatuan City, Nueva Ecija',
+            coordinates: { coordinates: [120.9673, 15.4748] },
+          },
+          passengerId: { firstName: 'Maria', lastName: 'Santos', mobileNumber: '09171234567' },
+          actualDurationMins: 12,
+          status: 'driver_assigned',
+        };
+        setCurrentRide(acceptedRide);
+        setRideState('pickup');
+        snapToExpanded();
+        return;
+      }
       if (err.response?.status === 400 || err.response?.status === 404) {
         Alert.alert('Error', 'Ride no longer available.');
       } else {
@@ -442,6 +466,14 @@ export default function HomeScreen() {
           return true;
       } catch (err: any) {
           console.error(err);
+          if (DEV_BYPASS_AUTH) {
+              setCurrentRide((prev: any) => ({
+                ...prev,
+                status,
+                ...(extraData || {}),
+              }));
+              return true;
+          }
           if (err.response?.status === 400 && err.response?.data?.code === 'GPS_TOO_FAR') {
               Alert.alert('Too Far', err.response.data.message);
               return 'too_far';
@@ -450,13 +482,34 @@ export default function HomeScreen() {
       }
   };
 
+  const handleBackToHome = () => {
+    setShowRideCancelledModal(false);
+    setRideState('idle');
+    setCurrentRide(null);
+    snapToCollapsed();
+  };
+
+  const handleDiscountConfirm = async (discountedCount: number, updatedFare: number) => {
+      setShowDiscountModal(false);
+      const result = await updateRideStatus('arrived_pickup', {
+          discountedPassengers: discountedCount,
+          updatedFare,
+      });
+      if (result === 'too_far') return;
+      if (!result) return Alert.alert('Error', 'Failed to update status.');
+      // Update ride fare locally so the summary screen shows the correct amount
+      if (currentRide) {
+          setCurrentRide((prev: any) => ({ ...prev, fare: updatedFare.toFixed(2) }));
+      }
+      setRideState('arrived');
+      snapToExpanded();
+  };
+
   const handleActionPress = async () => {
       if (rideState === 'pickup') {
-          const result = await updateRideStatus('arrived_pickup');
-          if (result === 'too_far') return;
-          if (!result) return Alert.alert('Error', 'Failed to update status.');
-          setRideState('arrived');
-          snapToExpanded();
+          // Show discount verification dialog before marking arrived
+          setShowDiscountModal(true);
+          return;
       } else if (rideState === 'arrived') {
           const result = await updateRideStatus('trip_started');
           if (result === 'too_far') return;
@@ -500,7 +553,14 @@ export default function HomeScreen() {
                             await api.post(`/driver/ride/${currentRide._id}/cancel`);
                             setRideState('idle');
                             setCurrentRide(null);
+                            snapToCollapsed();
                         } catch (err) {
+                            if (DEV_BYPASS_AUTH) {
+                                setRideState('idle');
+                                setCurrentRide(null);
+                                snapToCollapsed();
+                                return;
+                            }
                             Alert.alert('Error', 'Could not cancel ride.');
                         }
                     }
@@ -878,6 +938,19 @@ export default function HomeScreen() {
         </Animated.View>
       )}
 
+      {/* ── Discount Passenger Modal ───────────────────────────────── */}
+      <DiscountPassengerModal
+        visible={showDiscountModal}
+        onConfirm={handleDiscountConfirm}
+        onCancel={() => setShowDiscountModal(false)}
+      />
+
+      {/* ── Ride Cancelled Modal ─────────────────────────────────── */}
+      <RideCancelledModal
+        visible={showRideCancelledModal}
+        reason={cancelledReason}
+        onBackToHome={handleBackToHome}
+      />
     </GestureHandlerRootView>
   );
 }

@@ -4,6 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+import * as RN from 'react-native';
+
+if (Platform.OS === 'web' && !(RN as any).requireNativeComponent) {
+  (RN as any).requireNativeComponent = () => () => null;
+}
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/context/AuthContext';
@@ -108,6 +114,13 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="about"
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="fare-metrics"
             options={{
               headerShown: false,
               animation: 'slide_from_right',

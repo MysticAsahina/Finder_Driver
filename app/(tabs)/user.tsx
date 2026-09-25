@@ -13,6 +13,7 @@ const ACCENT = '#FF5F00';
 const OPTIONS = [
     { icon: 'headset-outline' as const, label: 'Help Centre' },
     { icon: 'settings-outline' as const, label: 'Edit Profile' },
+    { icon: 'calculator-outline' as const, label: 'Fare Metrics' },
     { icon: 'alert-circle-outline' as const, label: 'One Tap Emergency' },
     { icon: 'document-text-outline' as const, label: 'Terms and Privacy Policy' },
     { icon: 'information-circle-outline' as const, label: 'About FINDER' },
@@ -92,6 +93,8 @@ export default function UserScreen() {
                                     router.push('/about');
                                 } else if (item.label === 'Edit Profile') {
                                     router.push('/edit-profile');
+                                } else if (item.label === 'Fare Metrics') {
+                                    router.push('/fare-metrics');
                                 } else if (item.label === 'Help Centre') {
                                     router.push('/help-centre');
                                 } else if (item.label === 'One Tap Emergency') {

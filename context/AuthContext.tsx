@@ -34,6 +34,20 @@ export const AuthContext = createContext<AuthContextType>({
   setEmergencyContactState: () => { },
 });
 
+// DEV CONFIG: Set to true to bypass login/registration for frontend development without API
+export const DEV_BYPASS_AUTH = true;
+
+const MOCK_DRIVER_USER = {
+  _id: 'dev-driver-id',
+  firstName: 'Juan',
+  lastName: 'Driver',
+  email: 'driver@finder.com',
+  mobileNumber: '09123456789',
+  role: 'driver',
+  hasMpin: false,
+  isApproved: true
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -45,12 +59,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (accessToken) {
+    if (accessToken && !DEV_BYPASS_AUTH) {
       registerPushToken(accessToken);
     }
   }, [accessToken]);
 
   async function restoreSession() {
+    if (DEV_BYPASS_AUTH) {
+      setAccessToken('mock-dev-driver-token');
+      setUser(MOCK_DRIVER_USER);
+      setLoading(false);
+      return;
+    }
+
     try {
       const refreshToken =
         await SecureStore.getItemAsync("refreshToken");

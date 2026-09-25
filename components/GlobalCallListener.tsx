@@ -4,7 +4,7 @@ import { SocketContext } from '../context/SocketContext';
 import RNCallKeep from 'react-native-callkeep';
 import IncomingCallModal from './IncomingCallModal';
 
-import { PermissionsAndroid } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { ensureCallPermission } from '../utils/callPermissions';
 
 export default function GlobalCallListener() {
@@ -13,8 +13,11 @@ export default function GlobalCallListener() {
     const pathname = usePathname();
     const [incomingCall, setIncomingCall] = useState<{ callerName: string; isVideo: boolean; rideId: string; uuid: string } | null>(null);
 
+    const isCallKeepAvailable = (Platform.OS as string) !== 'web' && RNCallKeep && typeof (RNCallKeep as any)?.setup === 'function';
+
     // Initialize CallKeep
     useEffect(() => {
+        if (!isCallKeepAvailable) return;
         const options = {
             ios: { appName: 'Finder' },
             android: {
@@ -26,17 +29,22 @@ export default function GlobalCallListener() {
                 selfManaged: true // Uses our own IncomingCallModal UI instead of system Phone UI!
             }
         };
-        RNCallKeep.setup(options).then(accepted => {
-            console.log('CallKeep setup:', accepted);
-        });
-        RNCallKeep.setAvailable(true);
-    }, []);
+        try {
+            RNCallKeep.setup(options).then(accepted => {
+                console.log('CallKeep setup:', accepted);
+            }).catch(e => console.warn('CallKeep setup err:', e));
+            RNCallKeep.setAvailable(true);
+        } catch (e) {
+            console.warn('CallKeep not supported in current environment');
+        }
+    }, [isCallKeepAvailable]);
 
     // Handle CallKeep events (Still needed if user interacts with a notification somehow)
     useEffect(() => {
+        if (!isCallKeepAvailable) return;
         const answerListener = ({ callUUID }: any) => {
             if (incomingCall) {
-                RNCallKeep.backToForeground();
+                try { RNCallKeep.backToForeground(); } catch (e) {}
                 const { rideId, isVideo } = incomingCall;
                 setIncomingCall(null);
                 router.push(`/passenger-call?isVideo=${isVideo}&isReceiving=true&uuid=${incomingCall.uuid}`);
@@ -53,14 +61,18 @@ export default function GlobalCallListener() {
             }
         };
         
-        RNCallKeep.addEventListener('answerCall', answerListener);
-        RNCallKeep.addEventListener('endCall', endListener);
+        try {
+            RNCallKeep.addEventListener('answerCall', answerListener);
+            RNCallKeep.addEventListener('endCall', endListener);
+        } catch (e) {}
         
         return () => {
-            RNCallKeep.removeEventListener('answerCall');
-            RNCallKeep.removeEventListener('endCall');
+            try {
+                RNCallKeep.removeEventListener('answerCall');
+                RNCallKeep.removeEventListener('endCall');
+            } catch (e) {}
         };
-    }, [incomingCall, socket, router]);
+    }, [incomingCall, socket, router, isCallKeepAvailable]);
 
     // Handle WebSockets
     useEffect(() => {
@@ -84,12 +96,16 @@ export default function GlobalCallListener() {
         };
 
         const handleCallDenied = () => {
-            if (incomingCall?.uuid) RNCallKeep.endAllCalls();
+            if (incomingCall?.uuid && isCallKeepAvailable) {
+                try { RNCallKeep.endAllCalls(); } catch (e) {}
+            }
             setIncomingCall(null);
         };
 
         const handleEndCall = () => {
-            if (incomingCall?.uuid) RNCallKeep.endAllCalls();
+            if (incomingCall?.uuid && isCallKeepAvailable) {
+                try { RNCallKeep.endAllCalls(); } catch (e) {}
+            }
             setIncomingCall(null);
         };
 
@@ -106,12 +122,14 @@ export default function GlobalCallListener() {
 
     const handleAccept = async () => {
         if (incomingCall) {
-            const hasPermission = await ensureCallPermission();
-            if (hasPermission) {
-                try {
-                    RNCallKeep.answerIncomingCall(incomingCall.uuid);
-                } catch (e) {
-                    console.warn('CallKeep answerIncomingCall failed:', e);
+            if (isCallKeepAvailable) {
+                const hasPermission = await ensureCallPermission();
+                if (hasPermission) {
+                    try {
+                        RNCallKeep.answerIncomingCall(incomingCall.uuid);
+                    } catch (e) {
+                        console.warn('CallKeep answerIncomingCall failed:', e);
+                    }
                 }
             }
             const { isVideo } = incomingCall;
@@ -122,10 +140,12 @@ export default function GlobalCallListener() {
 
     const handleDecline = () => {
         if (incomingCall) {
-            try {
-                RNCallKeep.rejectCall(incomingCall.uuid);
-            } catch (e) {
-                console.warn('CallKeep rejectCall failed:', e);
+            if (isCallKeepAvailable) {
+                try {
+                    RNCallKeep.rejectCall(incomingCall.uuid);
+                } catch (e) {
+                    console.warn('CallKeep rejectCall failed:', e);
+                }
             }
             const { rideId } = incomingCall;
             if (socket) {
@@ -135,7 +155,7 @@ export default function GlobalCallListener() {
         }
     };
 
-    if (!incomingCall) return null;
+    if (Platform.OS === 'web' || !incomingCall) return null;
 
     return (
         <IncomingCallModal 
