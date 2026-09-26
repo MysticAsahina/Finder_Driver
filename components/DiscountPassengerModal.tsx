@@ -15,27 +15,36 @@ import {
 import { ACCENT, ACCENT_LIGHT, BORDER, TEXT_DARK, TEXT_SOFT, TEXT_HINT } from '@/constants/theme';
 
 // ── Fare config ────────────────────────────────────────────────────────────
-const REGULAR_FARE   = 35;   // ₱ per regular passenger
-const DISCOUNT_FARE  = 28;   // ₱ per discounted passenger (≈ 80% of regular)
-const MAX_DISCOUNT   = 3;    // maximum discounted passengers allowed
-const TOTAL_CAPACITY = 3;    // tricycle max passengers
+const BASE_FARE = 35;
+const PER_KM_FARE = 5;
+const BASE_DISTANCE = 3;
+const MAX_CAPACITY = 3;
 
 interface Props {
   visible: boolean;
+  passengerCount?: number;
+  distanceKm?: number;
   onConfirm: (discountedCount: number, updatedFare: number) => void;
   onCancel: () => void;
 }
 
-export default function DiscountPassengerModal({ visible, onConfirm, onCancel }: Props) {
+export default function DiscountPassengerModal({ visible, passengerCount = 1, distanceKm = 0, onConfirm, onCancel }: Props) {
   const [discounted, setDiscounted] = useState(0);
 
-  const regular     = TOTAL_CAPACITY - discounted;
-  const regularAmt  = regular * REGULAR_FARE;
-  const discountAmt = discounted * DISCOUNT_FARE;
-  const totalFare   = regularAmt + discountAmt;
+  const pCount = Math.min(MAX_CAPACITY, passengerCount);
+  const dCount = Math.min(pCount, discounted);
+  const regularCount = pCount - dCount;
+  const extraKm = Math.max(0, Math.ceil(distanceKm - BASE_DISTANCE));
+  const effectiveBaseFare = pCount === 1 ? BASE_FARE * 2 : BASE_FARE;
+  const regularFarePerPerson = effectiveBaseFare + (extraKm * PER_KM_FARE);
+  const discountedFarePerPerson = (effectiveBaseFare * 0.8) + (extraKm * PER_KM_FARE * 0.8);
+  
+  const regularAmt = regularCount * regularFarePerPerson;
+  const discountAmt = dCount * discountedFarePerPerson;
+  const totalFare = regularAmt + discountAmt;
 
   const decrement = () => setDiscounted(d => Math.max(0, d - 1));
-  const increment = () => setDiscounted(d => Math.min(MAX_DISCOUNT, d + 1));
+  const increment = () => setDiscounted(d => Math.min(pCount, d + 1));
 
   const handleConfirm = () => {
     onConfirm(discounted, totalFare);
@@ -67,7 +76,7 @@ export default function DiscountPassengerModal({ visible, onConfirm, onCancel }:
           <View style={styles.titleRow}>
             <View>
               <Text style={styles.title}>Passenger with Discount</Text>
-              <Text style={styles.subtitle}>Student / Senior / PWD ID • Max {MAX_DISCOUNT}</Text>
+              <Text style={styles.subtitle}>Student / Senior / PWD ID • Max {pCount}</Text>
             </View>
 
             {/* Counter */}
@@ -85,11 +94,11 @@ export default function DiscountPassengerModal({ visible, onConfirm, onCancel }:
 
               <TouchableOpacity
                 onPress={increment}
-                style={[styles.counterBtn, discounted >= MAX_DISCOUNT && styles.counterBtnDisabled]}
+                style={[styles.counterBtn, discounted >= pCount && styles.counterBtnDisabled]}
                 activeOpacity={0.75}
-                disabled={discounted >= MAX_DISCOUNT}
+                disabled={discounted >= pCount}
               >
-                <Text style={[styles.counterBtnText, discounted >= MAX_DISCOUNT && styles.counterBtnTextDisabled]}>+</Text>
+                <Text style={[styles.counterBtnText, discounted >= pCount && styles.counterBtnTextDisabled]}>+</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -100,7 +109,7 @@ export default function DiscountPassengerModal({ visible, onConfirm, onCancel }:
             <View style={styles.fareRow}>
               <Text style={styles.fareRowLabel}>
                 Regular passengers{' '}
-                <Text style={styles.fareFormula}>( {regular} × {REGULAR_FARE} )</Text>
+                <Text style={styles.fareFormula}>( {regularCount} × ₱{regularFarePerPerson.toFixed(2)} )</Text>
               </Text>
               <Text style={styles.fareRowAmt}>₱ {regularAmt.toFixed(2)}</Text>
             </View>
@@ -109,7 +118,7 @@ export default function DiscountPassengerModal({ visible, onConfirm, onCancel }:
             <View style={styles.fareRow}>
               <Text style={styles.fareRowLabel}>
                 Discounted passenger{discounted !== 1 ? 's' : ''}{' '}
-                <Text style={styles.fareFormula}>( {discounted} × {DISCOUNT_FARE} )</Text>
+                <Text style={styles.fareFormula}>( {dCount} × ₱{discountedFarePerPerson.toFixed(2)} )</Text>
               </Text>
               <Text style={[styles.fareRowAmt, { color: ACCENT }]}>₱ {discountAmt.toFixed(2)}</Text>
             </View>

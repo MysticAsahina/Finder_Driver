@@ -941,6 +941,8 @@ export default function HomeScreen() {
       {/* ── Discount Passenger Modal ───────────────────────────────── */}
       <DiscountPassengerModal
         visible={showDiscountModal}
+        passengerCount={currentRide?.passengerCount}
+        distanceKm={currentRide?.distanceKm}
         onConfirm={handleDiscountConfirm}
         onCancel={() => setShowDiscountModal(false)}
       />

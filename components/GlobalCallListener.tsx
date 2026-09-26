@@ -4,11 +4,13 @@ import { SocketContext } from '../context/SocketContext';
 import RNCallKeep from 'react-native-callkeep';
 import IncomingCallModal from './IncomingCallModal';
 
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, Alert } from 'react-native';
+import { AuthContext } from '../context/AuthContext';
 import { ensureCallPermission } from '../utils/callPermissions';
 
 export default function GlobalCallListener() {
     const { socket, isConnected } = useContext(SocketContext);
+    const { setUser, setAccessToken } = useContext(AuthContext);
     const router = useRouter();
     const pathname = usePathname();
     const [incomingCall, setIncomingCall] = useState<{ callerName: string; isVideo: boolean; rideId: string; uuid: string } | null>(null);
@@ -109,11 +111,26 @@ export default function GlobalCallListener() {
             setIncomingCall(null);
         };
 
+        const handleAccountWarning = (data: { message: string }) => {
+            Alert.alert('Official Warning', data.message);
+        };
+
+        const handleAccountRestricted = (data: { message: string }) => {
+            Alert.alert('Account Restricted', data.message);
+            setUser(null);
+            setAccessToken(null);
+            router.replace('/login');
+        };
+
+        socket.on('account_warning', handleAccountWarning);
+        socket.on('account_restricted', handleAccountRestricted);
         socket.on('webrtc_call_initiated', handleCallInitiated);
         socket.on('webrtc_call_denied', handleCallDenied);
         socket.on('webrtc_end_call', handleEndCall);
 
         return () => {
+            socket.off('account_warning', handleAccountWarning);
+            socket.off('account_restricted', handleAccountRestricted);
             socket.off('webrtc_call_initiated', handleCallInitiated);
             socket.off('webrtc_call_denied', handleCallDenied);
             socket.off('webrtc_end_call', handleEndCall);
