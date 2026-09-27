@@ -294,9 +294,9 @@ export default function HomeScreen() {
       },
       (newLoc) => {
         setLocation(newLoc);
-        if (rideState === 'idle') {
-           updateStatusOnBackend(true, newLoc.coords.latitude, newLoc.coords.longitude);
-        }
+        // We must ping the backend even when busy (driving to passenger) 
+        // so the system can verify we are moving and prevent false "Unresponsive" strikes.
+        updateStatusOnBackend(true, newLoc.coords.latitude, newLoc.coords.longitude);
       }
     );
 
@@ -537,36 +537,40 @@ export default function HomeScreen() {
   };
 
   const handleCancelRide = async () => {
-      // In a real app we'd have a driver cancellation flow.
-      // For now we just reset if they tap cancel locally (or we can call a cancel endpoint).
+      const cancelApi = async (reason?: string, forceStandardCancel?: boolean) => {
+        if (currentRide?._id) {
+            try {
+                await api.post(`/driver/ride/${currentRide._id}/cancel`, { reason, forceStandardCancel });
+                setRideState('idle');
+                setCurrentRide(null);
+                snapToCollapsed();
+            } catch (err: any) {
+                if (err.response?.data?.code === 'PASSENGER_IS_ACTIVE') {
+                  Alert.alert(
+                    'Passenger is Active',
+                    'The passenger has recently communicated. Cancelling now will be recorded as a standard cancellation against your account. Proceed?',
+                    [
+                      { text: 'No', style: 'cancel' },
+                      { text: 'Yes, Cancel', style: 'destructive', onPress: () => cancelApi(reason, true) }
+                    ]
+                  );
+                  return;
+                }
+                Alert.alert('Error', err.response?.data?.message || 'Could not cancel ride.');
+            }
+        }
+      };
+
+      const options = [
+        { text: 'Passenger Unresponsive', onPress: () => cancelApi('Passenger Unresponsive (Wait 5 mins)') },
+        { text: 'Other Reason (Strike)', style: 'destructive' as const, onPress: () => cancelApi('Other reason') },
+        { text: 'Back', style: 'cancel' as const }
+      ];
+
       Alert.alert(
         'Cancel Ride',
-        'Are you sure you want to cancel this ride?',
-        [
-            { text: 'No', style: 'cancel' },
-            { 
-                text: 'Yes',
-                style: 'destructive',
-                onPress: async () => {
-                    if (currentRide?._id) {
-                        try {
-                            await api.post(`/driver/ride/${currentRide._id}/cancel`);
-                            setRideState('idle');
-                            setCurrentRide(null);
-                            snapToCollapsed();
-                        } catch (err) {
-                            if (DEV_BYPASS_AUTH) {
-                                setRideState('idle');
-                                setCurrentRide(null);
-                                snapToCollapsed();
-                                return;
-                            }
-                            Alert.alert('Error', 'Could not cancel ride.');
-                        }
-                    }
-                }
-            }
-        ]
+        'Please select a reason for cancellation.',
+        options
       );
   };
 

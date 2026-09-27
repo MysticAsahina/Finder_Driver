@@ -86,7 +86,7 @@ export default function UserScreen() {
                                 index < OPTIONS.length - 1 && styles.optionBorder,
                             ]}
                             activeOpacity={0.7}
-                            onPress={() => {
+                            onPress={async () => {
                                 if (item.label === 'Terms and Privacy Policy') {
                                     router.push('/terms');
                                 } else if (item.label === 'About FINDER') {
@@ -94,7 +94,18 @@ export default function UserScreen() {
                                 } else if (item.label === 'Edit Profile') {
                                     router.push('/edit-profile');
                                 } else if (item.label === 'Fare Metrics') {
-                                    router.push('/fare-metrics');
+                                    try {
+                                        const res = await api.get('/passenger/settings/fare');
+                                        if (res.data && res.data.ordinanceUrl) {
+                                            import('react-native').then(({ Linking }) => {
+                                                Linking.openURL(res.data.ordinanceUrl);
+                                            });
+                                        } else {
+                                            Alert.alert('Not Available', 'The Fare Matrix has not yet been uploaded by the admin.');
+                                        }
+                                    } catch (err) {
+                                        Alert.alert('Error', 'Could not fetch fare matrix.');
+                                    }
                                 } else if (item.label === 'Help Centre') {
                                     router.push('/help-centre');
                                 } else if (item.label === 'One Tap Emergency') {
