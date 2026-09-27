@@ -6,7 +6,7 @@ import {
     setDriverRegMpin,
 } from '@/store/driverRegistrationStore';
 import { useRouter } from 'expo-router';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     Alert,
     StyleSheet,
@@ -36,6 +36,13 @@ export default function SetupMpinScreen() {
 
   const currentPin = step === 'create' ? pin : confirmPin;
   const setCurrentPin = step === 'create' ? setPin : setConfirmPin;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleInput = async (text: string) => {
     const digits = text.replace(/[^0-9]/g, '').slice(0, PIN_LENGTH);
@@ -138,6 +145,18 @@ export default function SetupMpinScreen() {
                 {currentPin.length > i && <Text style={styles.otpDot}>•</Text>}
               </View>
             ))}
+
+            {/* Hidden input overlaying the boxes */}
+            <TextInput
+              ref={inputRef}
+              style={styles.hiddenInput}
+              value={currentPin}
+              onChangeText={handleInput}
+              keyboardType="number-pad"
+              maxLength={PIN_LENGTH}
+              autoFocus
+              caretHidden
+            />
           </View>
 
           <View style={styles.errorContainer}>
@@ -156,18 +175,6 @@ export default function SetupMpinScreen() {
           >
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-
-          {/* Hidden input */}
-          <TextInput
-            ref={inputRef}
-            style={styles.hiddenInput}
-            value={currentPin}
-            onChangeText={handleInput}
-            keyboardType="number-pad"
-            maxLength={PIN_LENGTH}
-            autoFocus
-            caretHidden
-          />
         </Pressable>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -221,8 +228,11 @@ const styles = StyleSheet.create({
   cancelText:   { color: '#aaa', fontSize: 14 },
   hiddenInput: {
     position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     opacity: 0,
-    width: 1,
-    height: 1,
+    color: 'transparent',
   },
 });

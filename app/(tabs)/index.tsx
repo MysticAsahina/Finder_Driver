@@ -193,10 +193,14 @@ export default function HomeScreen() {
            socket.disconnect();
            setTimeout(() => {
                socket.connect();
+               // Wait 1 second before resyncing to ensure the backend's disconnect handler finishes first
+               setTimeout(() => {
+                 if (isOnline && location) {
+                    updateStatusOnBackend(true, location.coords.latitude, location.coords.longitude);
+                 }
+               }, 1000);
            }, 100);
-        }
-        // Always resync our online status with the backend in case we were disconnected and marked offline
-        if (isOnline && location) {
+        } else if (isOnline && location) {
            updateStatusOnBackend(true, location.coords.latitude, location.coords.longitude);
         }
       }
@@ -301,17 +305,21 @@ export default function HomeScreen() {
     );
 
     if (bgStatus === 'granted') {
-      await Location.startLocationUpdatesAsync('background-location-task', {
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 10000,
-        distanceInterval: 10,
-        showsBackgroundLocationIndicator: true,
-        foregroundService: {
-          notificationTitle: 'FINDER Driver Online',
-          notificationBody: 'Your location is being tracked while online.',
-          notificationColor: '#4f46e5',
-        }
-      });
+      try {
+        await Location.startLocationUpdatesAsync('background-location-task', {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 10000,
+          distanceInterval: 10,
+          showsBackgroundLocationIndicator: true,
+          foregroundService: {
+            notificationTitle: 'FINDER Driver Online',
+            notificationBody: 'Your location is being tracked while online.',
+            notificationColor: '#4f46e5',
+          }
+        });
+      } catch (err) {
+        console.log('Could not start background location updates:', err);
+      }
     }
 
     return true;
@@ -507,8 +515,17 @@ export default function HomeScreen() {
 
   const handleActionPress = async () => {
       if (rideState === 'pickup') {
-          // Show discount verification dialog before marking arrived
-          setShowDiscountModal(true);
+          if (currentRide?.bookingFor === 'myself') {
+              // System verified discount, skip modal
+              const result = await updateRideStatus('arrived_pickup');
+              if (result) {
+                  setRideState('arrived');
+                  snapToExpanded();
+              }
+          } else {
+              // Show discount verification dialog before marking arrived
+              setShowDiscountModal(true);
+          }
           return;
       } else if (rideState === 'arrived') {
           const result = await updateRideStatus('trip_started');

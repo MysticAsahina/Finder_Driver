@@ -2,7 +2,7 @@ import { Colors } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
 import api from '@/utils/axios';
 import { useRouter } from 'expo-router';
-import React, { useContext, useRef, useState } from 'react';
+import React, { useContext, useRef, useState, useEffect } from 'react';
 import {
     Image,
     KeyboardAvoidingView,
@@ -25,6 +25,13 @@ export default function EnterMpinScreen() {
     const [error, setError] = useState<string | null>(null);
     const [pin, setPin] = useState('');
     const inputRef = useRef<TextInput>(null);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            inputRef.current?.focus();
+        }, 500);
+        return () => clearTimeout(timer);
+    }, []);
 
     const verifyMpin = async (mpin: string) => {
         setLoading(true);

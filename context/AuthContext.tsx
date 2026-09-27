@@ -35,7 +35,7 @@ export const AuthContext = createContext<AuthContextType>({
 });
 
 // DEV CONFIG: Set to true to bypass login/registration for frontend development without API
-export const DEV_BYPASS_AUTH = true;
+export const DEV_BYPASS_AUTH = false;
 
 const MOCK_DRIVER_USER = {
   _id: 'dev-driver-id',
