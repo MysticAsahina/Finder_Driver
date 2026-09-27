@@ -484,14 +484,19 @@ export default function UploadGuidelinesScreen() {
 
       setPhase(isLicenseFront ? 'recognizing' : 'uploading');
 
+      let uploadUri = localUri;
+      
       if (isLicenseFront) {
-        const ocrUri = await prepareImageForOcr(localUri);
-        extractedLicenseData = await recognizeLicenseDetails(ocrUri);
+        uploadUri = await prepareImageForOcr(localUri);
+        extractedLicenseData = await recognizeLicenseDetails(uploadUri);
+      } else {
+        // Aggressively compress all other images before upload to prevent FormData OOM crashes
+        uploadUri = await prepareImageForOcr(localUri);
       }
 
       setPhase('uploading');
 
-      const { secure_url, public_id } = await uploadToCloudinary(localUri, token);
+      const { secure_url, public_id } = await uploadToCloudinary(uploadUri, token);
 
       // Store URL and public ID in the registration store.
       if (fieldName) {
