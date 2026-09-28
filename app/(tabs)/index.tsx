@@ -120,6 +120,29 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [incomingRide, timeLeft]);
 
+  const [summaryCountdown, setSummaryCountdown] = useState<number | null>(null);
+
+  // Timer for dropoff summary auto-close
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (rideState === 'dropoff_summary') {
+      setSummaryCountdown(15);
+      interval = setInterval(() => {
+        setSummaryCountdown((prev) => {
+          if (prev && prev <= 1) {
+            setRideState('idle');
+            setCurrentRide(null);
+            return null;
+          }
+          return prev ? prev - 1 : null;
+        });
+      }, 1000);
+    } else {
+      setSummaryCountdown(null);
+    }
+    return () => clearInterval(interval);
+  }, [rideState]);
+
   // Ensure driver joins the ride room whenever connected and has a ride
   useEffect(() => {
     if (!socket || !currentRide?._id) return;
@@ -723,7 +746,9 @@ export default function HomeScreen() {
                         setCurrentRide(null);
                     }}
                 >
-                    <Text style={styles.confirmText}>Back to Map</Text>
+                    <Text style={styles.confirmText}>
+                        Back to Map {summaryCountdown !== null ? `(${summaryCountdown}s)` : ''}
+                    </Text>
                 </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>

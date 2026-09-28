@@ -16,11 +16,10 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       
       try {
         await api.post('/driver/status', {
-          // Send background status (isOnline: true implicitly since we're tracking)
           isOnline: true,
           latitude: location.coords.latitude,
           longitude: location.coords.longitude
-        });
+        }, { headers: { 'X-Is-Background': 'true' } });
       } catch (err) {
         console.error('Failed to update background location', err);
       }

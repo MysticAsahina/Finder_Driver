@@ -1,21 +1,21 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import 'react-native-reanimated';
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 import * as RN from 'react-native';
+import { Platform } from 'react-native';
+import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 if (Platform.OS === 'web' && !(RN as any).requireNativeComponent) {
   (RN as any).requireNativeComponent = () => () => null;
 }
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { AuthProvider } from '@/context/AuthContext';
-import { SocketProvider } from '@/context/SocketContext';
 import AppLifecycleObserver from '@/components/AppLifecycleObserver';
 import GlobalCallListener from '@/components/GlobalCallListener';
+import { AuthProvider } from '@/context/AuthContext';
+import { SocketProvider } from '@/context/SocketContext';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import '@/utils/backgroundLocation';
 
 if (!__DEV__) {
@@ -114,13 +114,6 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="about"
-            options={{
-              headerShown: false,
-              animation: 'slide_from_right',
-            }}
-          />
-          <Stack.Screen
-            name="fare-metrics"
             options={{
               headerShown: false,
               animation: 'slide_from_right',

@@ -35,14 +35,24 @@ const processQueue = (error: any, token: string | null = null) => {
 
 let currentAccessToken: string | null = null;
 
-export const setAxiosAccessToken = (token: string | null) => {
+export const setAxiosAccessToken = async (token: string | null) => {
     currentAccessToken = token;
+    if (token) {
+        await SecureStore.setItemAsync('accessToken', token).catch(() => {});
+    } else {
+        await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+    }
 };
 
 api.interceptors.request.use(
-    (config) => {
-        if (currentAccessToken && !config.headers['Authorization']) {
-            config.headers['Authorization'] = 'Bearer ' + currentAccessToken;
+    async (config) => {
+        let token = currentAccessToken;
+        if (!token) {
+            token = await SecureStore.getItemAsync('accessToken').catch(() => null);
+            if (token) currentAccessToken = token;
+        }
+        if (token && !config.headers['Authorization']) {
+            config.headers['Authorization'] = 'Bearer ' + token;
         }
         return config;
     },
@@ -54,7 +64,6 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        // Skip refresh logic for login/otp endpoints
         const url = originalRequest.url || '';
         if (
             url.includes('/auth/login') || 
@@ -69,11 +78,22 @@ api.interceptors.response.use(
 
         if (error.response?.status === 401 && !originalRequest._retry) {
             if (error.response?.data?.message === "Session expired due to login on another device.") {
+                // Check if the foreground app just logged in and we're just using an old token in memory
+                const storedAccessToken = await SecureStore.getItemAsync('accessToken').catch(() => null);
+                const usedToken = originalRequest.headers['Authorization']?.replace('Bearer ', '');
+                
+                if (storedAccessToken && storedAccessToken !== usedToken) {
+                    await setAxiosAccessToken(storedAccessToken);
+                    originalRequest.headers['Authorization'] = 'Bearer ' + storedAccessToken;
+                    return api(originalRequest);
+                }
+
                 const { Alert } = require('react-native');
                 Alert.alert("Session Expired", "Your account has been logged in on another device.");
-                await SecureStore.deleteItemAsync('refreshToken');
-                setAxiosAccessToken(null);
-                router.replace('/login');
+                await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
+                await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+                await setAxiosAccessToken(null);
+                if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
                 return Promise.reject(error);
             }
 
@@ -93,13 +113,14 @@ api.interceptors.response.use(
             originalRequest._retry = true;
             isRefreshing = true;
 
-            const refreshToken = await SecureStore.getItemAsync('refreshToken');
+            const refreshToken = await SecureStore.getItemAsync('refreshToken').catch(() => null);
             
             if (!refreshToken) {
                 isRefreshing = false;
-                await SecureStore.deleteItemAsync('refreshToken');
-                setAxiosAccessToken(null);
-                router.replace('/login');
+                await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
+                await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+                await setAxiosAccessToken(null);
+                if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
                 return Promise.reject(error);
             }
 
@@ -112,25 +133,39 @@ api.interceptors.response.use(
                 const newRefreshToken = response.data.refreshToken;
 
                 if (newRefreshToken) {
-                    await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+                    await SecureStore.setItemAsync('refreshToken', newRefreshToken).catch(() => {});
                 }
                 
-                setAxiosAccessToken(newAccessToken);
+                await setAxiosAccessToken(newAccessToken);
                 originalRequest.headers['Authorization'] = 'Bearer ' + newAccessToken;
                 
                 processQueue(null, newAccessToken);
                 return api(originalRequest);
             } catch (err: any) {
+                // Check if another thread refreshed it successfully
+                const currentStoredToken = await SecureStore.getItemAsync('refreshToken').catch(() => null);
+                if (currentStoredToken && currentStoredToken !== refreshToken) {
+                    const newAccess = await SecureStore.getItemAsync('accessToken').catch(() => null);
+                    if (newAccess) {
+                        await setAxiosAccessToken(newAccess);
+                        originalRequest.headers['Authorization'] = 'Bearer ' + newAccess;
+                        processQueue(null, newAccess);
+                        isRefreshing = false;
+                        return api(originalRequest);
+                    }
+                }
+
                 processQueue(err, null);
-                await SecureStore.deleteItemAsync('refreshToken');
-                setAxiosAccessToken(null);
+                await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
+                await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+                await setAxiosAccessToken(null);
 
                 if (err.response?.status === 401 && err.response?.data?.message === "Session expired due to login on another device.") {
                     const { Alert } = require('react-native');
                     Alert.alert("Session Expired", "Your account has been logged in on another device.");
                 }
 
-                router.replace('/login');
+                if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;

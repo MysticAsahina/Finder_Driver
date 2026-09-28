@@ -1,12 +1,12 @@
 import { AuthContext } from '@/context/AuthContext';
+import api from '@/utils/axios';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import * as Location from 'expo-location';
 import React, { useContext } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
 
@@ -71,7 +71,6 @@ export default function UserScreen() {
                         <Ionicons name="person" size={28} color="#999" />
                     </View>
                     <Text style={styles.profileName}>{displayName}</Text>
-                    <Ionicons name="chevron-forward" size={22} color="#999" />
                 </TouchableOpacity>
 
                 {/* Options */}
