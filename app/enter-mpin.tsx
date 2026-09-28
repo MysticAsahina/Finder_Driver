@@ -213,14 +213,17 @@ const styles = StyleSheet.create({
         color: 'transparent',
     },
     errorContainer: {
-        height: 24,
+        minHeight: 24,
         marginBottom: 8,
         justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 20,
     },
     errorText: {
         color: '#e74c3c',
         fontSize: 14,
         fontWeight: '500',
+        textAlign: 'center',
     },
     forgotBtn: {
         marginTop: 8,

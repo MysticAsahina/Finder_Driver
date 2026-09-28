@@ -214,9 +214,11 @@ const styles = StyleSheet.create({
     lineHeight: 38,
   },
   errorContainer: {
-    height: 24,
+    minHeight: 24,
     marginBottom: 8,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
   },
   errorText:    { color: '#e53935', fontSize: 13, textAlign: 'center', fontWeight: '500' },
   loadingContainer: {

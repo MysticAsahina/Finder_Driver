@@ -158,10 +158,6 @@ export default function PassengerCallScreen() {
     };
 
     useEffect(() => {
-        // Start InCallManager
-        InCallManager.start({ media: isInitialVideoCall ? 'video' : 'audio' });
-        InCallManager.setForceSpeakerphoneOn(false); // Default to earpiece
-        
         return () => cleanup();
     }, []);
 
@@ -256,8 +252,12 @@ export default function PassengerCallScreen() {
                 stream = await mediaDevices.getUserMedia(mediaConstraints);
                 setLocalStream(stream);
                 localStreamRef.current = stream;
+
+                InCallManager.start({ media: isInitialVideoCall ? 'video' : 'audio' });
+                InCallManager.setForceSpeakerphoneOn(false);
             } catch (err) {
                 console.error("Failed to get local stream", err);
+                hasSetupWebRTC.current = false;
                 return;
             }
 

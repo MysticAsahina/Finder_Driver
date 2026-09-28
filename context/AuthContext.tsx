@@ -149,8 +149,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // use api to send token
       await api.post('/support/push-token', { pushToken: pushTokenData.data });
-    } catch (err) {
-      console.error('Failed to register push token:', err);
+    } catch (err: any) {
+      if (err?.message?.includes('SERVICE_NOT_AVAILABLE')) {
+        console.log('Push notifications not available (usually means Google Play Services is missing on this emulator).');
+      } else {
+        console.warn('Failed to register push token:', err);
+      }
     }
   }
 
