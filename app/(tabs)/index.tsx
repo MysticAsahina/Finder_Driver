@@ -141,6 +141,21 @@ export default function HomeScreen() {
       socket.off('connect', handleReconnect);
     };
   }, [socket, currentRide?._id, isConnected]);
+  const [fareSettings, setFareSettings] = useState({ baseFare: 25, perKmFare: 8.5, baseDistance: 3 });
+
+  useEffect(() => {
+    const fetchFareSettings = async () => {
+      try {
+        const res = await api.get('/passenger/settings/fare');
+        if (res.data) {
+          setFareSettings(res.data);
+        }
+      } catch (err) {
+        console.error('Error fetching fare settings:', err);
+      }
+    };
+    fetchFareSettings();
+  }, []);
 
   // Listen to Socket events
   useEffect(() => {
@@ -964,6 +979,7 @@ export default function HomeScreen() {
         visible={showDiscountModal}
         passengerCount={currentRide?.passengerCount}
         distanceKm={currentRide?.distanceKm}
+        fareSettings={fareSettings}
         onConfirm={handleDiscountConfirm}
         onCancel={() => setShowDiscountModal(false)}
       />

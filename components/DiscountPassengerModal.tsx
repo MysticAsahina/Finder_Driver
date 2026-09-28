@@ -15,21 +15,23 @@ import {
 import { ACCENT, ACCENT_LIGHT, BORDER, TEXT_DARK, TEXT_SOFT, TEXT_HINT } from '@/constants/theme';
 
 // ── Fare config ────────────────────────────────────────────────────────────
-const BASE_FARE = 35;
-const PER_KM_FARE = 5;
-const BASE_DISTANCE = 3;
 const MAX_CAPACITY = 3;
 
 interface Props {
   visible: boolean;
   passengerCount?: number;
   distanceKm?: number;
+  fareSettings?: { baseFare: number, perKmFare: number, baseDistance: number };
   onConfirm: (discountedCount: number, updatedFare: number) => void;
   onCancel: () => void;
 }
 
-export default function DiscountPassengerModal({ visible, passengerCount = 1, distanceKm = 0, onConfirm, onCancel }: Props) {
+export default function DiscountPassengerModal({ visible, passengerCount = 1, distanceKm = 0, fareSettings, onConfirm, onCancel }: Props) {
   const [discounted, setDiscounted] = useState(0);
+
+  const BASE_FARE = fareSettings?.baseFare || 25;
+  const PER_KM_FARE = fareSettings?.perKmFare || 8.5;
+  const BASE_DISTANCE = fareSettings?.baseDistance || 3;
 
   const pCount = Math.min(MAX_CAPACITY, passengerCount);
   const dCount = Math.min(pCount, discounted);
