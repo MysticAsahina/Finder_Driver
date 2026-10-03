@@ -394,7 +394,7 @@ export default function SupportChatScreen() {
                                 style={styles.textInput}
                                 value={input}
                                 onChangeText={setInput}
-                                placeholder="Write a message..."
+                                placeholder="Describe your issues..."
                                 placeholderTextColor="#bbb"
                                 onSubmitEditing={send}
                                 returnKeyType="send"
