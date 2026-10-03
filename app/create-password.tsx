@@ -87,6 +87,12 @@ export default function CreatePasswordScreen() {
     if (!password)                          return setError('Password is required.');
     if (password.length < MIN_PASSWORD)     return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
     if (password.length > MAX_PASSWORD)     return setError(`Password must be ${MAX_PASSWORD} characters or fewer.`);
+    
+    if (!/(?=.*[a-z])/.test(password)) return setError("Password must contain at least one lowercase letter.");
+    if (!/(?=.*[A-Z])/.test(password)) return setError("Password must contain at least one uppercase letter.");
+    if (!/(?=.*\d)/.test(password)) return setError("Password must contain at least one number.");
+    if (!/(?=.*[^A-Za-z0-9])/.test(password)) return setError("Password must contain at least one special character.");
+
     if (password !== confirmPassword)       return setError('Passwords do not match.');
 
     setDriverRegPassword(password, confirmPassword);
