@@ -12,6 +12,7 @@ import RequestModal from '@/components/RequestModal';
 import DiscountPassengerModal from '@/components/DiscountPassengerModal';
 import RideCancelledModal from '@/components/RideCancelledModal';
 import api from '@/utils/axios';
+import { useNetworkSpeed } from '@/utils/useNetworkSpeed';
 
 import Animated, {
     useSharedValue,
@@ -31,6 +32,7 @@ const SHEET_COLLAPSED_HEIGHT = 160;
 type RideState = 'idle' | 'pickup' | 'arrived' | 'trip_started' | 'dropoff_summary';
 
 export default function HomeScreen() {
+  const isSlowNetwork = useNetworkSpeed();
   const [isOnline, setIsOnline] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -163,9 +165,33 @@ export default function HomeScreen() {
     }
 
     // Direct listener for reconnections (bypasses React state delays after OS sleep)
-    const handleReconnect = () => {
+    const handleReconnect = async () => {
       console.log('Driver socket reconnected! Re-joining ride room...');
       socket.emit('join_ride', { rideId: currentRide._id });
+      try {
+          const res = await api.get('/driver/ride/current');
+          if (res.data && res.data.ride) {
+              const ride = res.data.ride;
+              setCurrentRide(ride);
+              if (ride.status === 'driver_assigned') {
+                  setRideState('pickup');
+              } else if (ride.status === 'arrived_pickup') {
+                  setRideState('arrived');
+              } else if (ride.status === 'trip_started') {
+                  setRideState('trip_started');
+              } else if (ride.status === 'completed') {
+                  setRideState('dropoff_summary');
+              } else {
+                  setRideState('idle');
+                  setCurrentRide(null);
+              }
+          } else {
+              setRideState('idle');
+              setCurrentRide(null);
+          }
+      } catch (err) {
+          console.log('Failed to sync on reconnect');
+      }
     };
 
     socket.on('connect', handleReconnect);
@@ -832,6 +858,13 @@ export default function HomeScreen() {
             />
         )}
       </MapView>
+
+      {/* Network Warning Banner */}
+      {isSlowNetwork && (
+        <View style={{ position: 'absolute', top: insets.top + 10, alignSelf: 'center', backgroundColor: 'rgba(220, 53, 69, 0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>⚠️ Slow Network Connection</Text>
+        </View>
+      )}
 
       {/* Earnings pill / bubble */}
       {rideState === 'idle' && (
