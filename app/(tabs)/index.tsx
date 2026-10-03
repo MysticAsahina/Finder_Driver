@@ -92,6 +92,16 @@ export default function HomeScreen() {
       const currentHeight = sheetHeight.value;
       const midPoint = (SHEET_EXPANDED_HEIGHT + SHEET_COLLAPSED_HEIGHT) / 2;
 
+      // Handle tap detection
+      if (Math.abs(event.translationY) < 10 && Math.abs(event.translationX) < 10) {
+        if (currentHeight > midPoint) {
+           runOnJS(snapToCollapsed)();
+        } else {
+           runOnJS(snapToExpanded)();
+        }
+        return;
+      }
+
       if (velocity > 500 || currentHeight < midPoint) {
           runOnJS(snapToCollapsed)();
       } else {
@@ -214,11 +224,18 @@ export default function HomeScreen() {
       }
     });
 
+    socket.on('force_offline', (data: any) => {
+      Alert.alert('Status Updated', data?.reason || "You've been marked offline due to prolonged inactivity.");
+      stopTracking();
+      setIsOnline(false);
+    });
+
     return () => {
       socket.off('ride_request');
       socket.off('ride_request_expired');
       socket.off('ride_cancelled');
       socket.off('ride_status_update');
+      socket.off('force_offline');
     };
   }, [socket, isConnected, rideState, currentRide]);
 
