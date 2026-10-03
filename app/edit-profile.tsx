@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useContext, useState, useMemo } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -31,18 +31,22 @@ function validateMobile(value: string): string | null {
     return null;
 }
 function validateEmail(value: string): string | null {
-    if (!value.trim()) return null; // optional
+    if (!value.trim()) return null;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Invalid email format.';
     if (value.length > 254) return 'Email is too long.';
     return null;
 }
 function validatePassword(value: string): string | null {
-    if (value.length < 8) return 'Password must be at least 8 characters.';
-    if (value.length > 128) return 'Password is too long.';
+    if (value && value.length > 0) {
+        if (value.length < 8) return 'Password must be at least 8 characters.';
+        if (value.length > 128) return 'Password is too long.';
+    }
     return null;
 }
 function validateMpin(value: string): string | null {
-    if (!/^\d{4}$/.test(value)) return 'MPIN must be exactly 4 digits.';
+    if (value && value.length > 0) {
+        if (!/^\d{4}$/.test(value)) return 'MPIN must be exactly 4 digits.';
+    }
     return null;
 }
 
@@ -102,10 +106,18 @@ export default function EditProfileScreen() {
     const router = useRouter();
     const { user, setUser, accessToken } = useContext(AuthContext);
 
-    // ── Form state ───────────────────────────────────────────────────────────
-    const [editingField, setEditingField] = useState<FieldKey | null>(null);
-    const [fieldValue, setFieldValue] = useState('');
-    const [confirmValue, setConfirmValue] = useState('');
+    const [formValues, setFormValues] = useState<Record<string, string>>({
+        firstName: user?.firstName ?? '',
+        lastName: user?.lastName ?? '',
+        mobileNumber: user?.mobileNumber ?? '',
+        email: user?.email ?? '',
+        password: '',
+        confirmPassword: '',
+        mpin: '',
+        confirmMpin: '',
+    });
+
+    const [editingFields, setEditingFields] = useState<Record<string, boolean>>({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -113,64 +125,64 @@ export default function EditProfileScreen() {
     const [pendingOtpData, setPendingOtpData] = useState<{ destination: string, message: string } | null>(null);
     const [otpCode, setOtpCode] = useState('');
 
-    // ── Derived display values ───────────────────────────────────────────────
-    const displayValues: Record<FieldKey, string> = {
-        firstName: user?.firstName ?? '',
-        lastName: user?.lastName ?? '',
-        mobileNumber: user?.mobileNumber ?? '',
-        email: user?.email ?? '',
-        password: '••••••••',
-        mpin: user?.hasMpin ? '••••' : '',
+    const toggleEditing = (key: string) => {
+        setEditingFields(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    // ── Open editor ──────────────────────────────────────────────────────────
-    const startEditing = useCallback((key: FieldKey) => {
-        setEditingField(key);
-        setFieldValue(key === 'password' || key === 'mpin' ? '' : (displayValues[key] ?? ''));
-        setConfirmValue('');
-        setShowPassword(false);
-        setShowConfirm(false);
-        setError(null);
-    }, [displayValues]);
+    const hasChanges = useMemo(() => {
+        return (
+            formValues.firstName !== (user?.firstName ?? '') ||
+            formValues.lastName !== (user?.lastName ?? '') ||
+            formValues.mobileNumber !== (user?.mobileNumber ?? '') ||
+            formValues.email !== (user?.email ?? '') ||
+            formValues.password.length > 0 ||
+            formValues.mpin.length > 0
+        );
+    }, [formValues, user]);
 
-    // ── Save ─────────────────────────────────────────────────────────────────
     const handleSave = async () => {
-        if (!editingField) return;
         setError(null);
+        
+        // Client-side validation
+        let valError = validateName(formValues.firstName, 'First Name');
+        if (valError) return setError(valError);
+        valError = validateName(formValues.lastName, 'Last Name');
+        if (valError) return setError(valError);
+        valError = validateMobile(formValues.mobileNumber);
+        if (valError) return setError(valError);
+        valError = validateEmail(formValues.email);
+        if (valError) return setError(valError);
 
-        // Validate
-        let validationError: string | null = null;
-        switch (editingField) {
-            case 'firstName': validationError = validateName(fieldValue, 'First name'); break;
-            case 'lastName': validationError = validateName(fieldValue, 'Last name'); break;
-            case 'mobileNumber': validationError = validateMobile(fieldValue); break;
-            case 'email': validationError = validateEmail(fieldValue); break;
-            case 'password':
-                validationError = validatePassword(fieldValue);
-                if (!validationError && fieldValue !== confirmValue) {
-                    validationError = 'Passwords do not match.';
-                }
-                break;
-            case 'mpin':
-                validationError = validateMpin(fieldValue);
-                if (!validationError && fieldValue !== confirmValue) {
-                    validationError = 'MPINs do not match.';
-                }
-                break;
+        if (formValues.password) {
+            valError = validatePassword(formValues.password);
+            if (valError) return setError(valError);
+            if (formValues.password !== formValues.confirmPassword) {
+                return setError('Passwords do not match.');
+            }
         }
-        if (validationError) return setError(validationError);
+        if (formValues.mpin) {
+            valError = validateMpin(formValues.mpin);
+            if (valError) return setError(valError);
+            if (formValues.mpin !== formValues.confirmMpin) {
+                return setError('MPINs do not match.');
+            }
+        }
 
         setSaving(true);
         try {
-            const body: Record<string, string> = {};
-            if (editingField === 'password') {
-                body.password = fieldValue;
-                body.confirmPassword = confirmValue;
-            } else if (editingField === 'mpin') {
-                body.mpin = fieldValue;
-                body.confirmMpin = confirmValue;
-            } else {
-                body[editingField] = fieldValue.trim();
+            const body: Record<string, string> = {
+                firstName: formValues.firstName.trim(),
+                lastName: formValues.lastName.trim(),
+                mobileNumber: formValues.mobileNumber.trim(),
+                email: formValues.email.trim(),
+            };
+            if (formValues.password) {
+                body.password = formValues.password;
+                body.confirmPassword = formValues.confirmPassword;
+            }
+            if (formValues.mpin) {
+                body.mpin = formValues.mpin;
+                body.confirmMpin = formValues.confirmMpin;
             }
 
             const res = await api.patch('/driver/edit-profile', body);
@@ -181,9 +193,13 @@ export default function EditProfileScreen() {
                 return;
             }
 
-            // Update context so the whole app reflects the change
             if (data.user) setUser(data.user);
-            setEditingField(null);
+            Alert.alert("Success", "Profile updated successfully.");
+            
+            // Reset edit state
+            setEditingFields({});
+            setFormValues(prev => ({ ...prev, password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
+            
         } catch (err: any) {
             setError(err.response?.data?.message || 'Unable to reach the server.');
         } finally {
@@ -199,8 +215,10 @@ export default function EditProfileScreen() {
             const res = await api.post('/driver/edit-profile/verify-update', { code: otpCode });
             if (res.data.user) setUser(res.data.user);
             setPendingOtpData(null);
-            setEditingField(null);
+            setEditingFields({});
+            setFormValues(prev => ({ ...prev, password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
             setOtpCode('');
+            Alert.alert("Success", "Profile updated successfully.");
         } catch (err: any) {
             setError(err.response?.data?.message || 'Invalid OTP.');
         } finally {
@@ -208,19 +226,38 @@ export default function EditProfileScreen() {
         }
     };
 
+    const handleCancel = () => {
+        setFormValues({
+            firstName: user?.firstName ?? '',
+            lastName: user?.lastName ?? '',
+            mobileNumber: user?.mobileNumber ?? '',
+            email: user?.email ?? '',
+            password: '',
+            confirmPassword: '',
+            mpin: '',
+            confirmMpin: '',
+        });
+        setEditingFields({});
+        setError(null);
+    };
+
     const handleResend = async () => {
         setSaving(true);
         setError(null);
         try {
-            const body: Record<string, string> = {};
-            if (editingField === 'password') {
-                body.password = fieldValue;
-                body.confirmPassword = confirmValue;
-            } else if (editingField === 'mpin') {
-                body.mpin = fieldValue;
-                body.confirmMpin = confirmValue;
-            } else if (editingField) {
-                body[editingField] = fieldValue.trim();
+            const body: Record<string, string> = {
+                firstName: formValues.firstName.trim(),
+                lastName: formValues.lastName.trim(),
+                mobileNumber: formValues.mobileNumber.trim(),
+                email: formValues.email.trim(),
+            };
+            if (formValues.password) {
+                body.password = formValues.password;
+                body.confirmPassword = formValues.confirmPassword;
+            }
+            if (formValues.mpin) {
+                body.mpin = formValues.mpin;
+                body.confirmMpin = formValues.confirmMpin;
             }
 
             await api.patch('/driver/edit-profile', body);
@@ -232,21 +269,17 @@ export default function EditProfileScreen() {
         }
     };
 
-    // ── Render ────────────────────────────────────────────────────────────────
-    const activeField = FIELDS.find(f => f.key === editingField);
     const initials = `${(user?.firstName ?? '')[0] ?? ''}${(user?.lastName ?? '')[0] ?? ''}`.toUpperCase();
 
     return (
         <SafeAreaView style={s.safe}>
             <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-
-                {/* ── Top section (orange background) ─────────────── */}
                 <View style={s.topSection}>
                     <View style={s.headerRow}>
-                        <TouchableOpacity onPress={() => editingField ? setEditingField(null) : router.back()} activeOpacity={0.7}>
+                        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
                             <Ionicons name="arrow-back" size={24} color={ACCENT} />
                         </TouchableOpacity>
-                        <Text style={s.headerTitle}>{editingField ? 'Edit Field' : 'User Profile'}</Text>
+                        <Text style={s.headerTitle}>User Profile</Text>
                         <View style={{ width: 24 }} />
                     </View>
                     <View style={s.avatarWrap}>
@@ -256,7 +289,6 @@ export default function EditProfileScreen() {
                     </View>
                 </View>
 
-                {/* ── White card ──────────────────────────────────── */}
                 <ScrollView style={s.card} contentContainerStyle={s.cardContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
                     {pendingOtpData ? (
@@ -290,114 +322,113 @@ export default function EditProfileScreen() {
                                 <Text style={{ color: ACCENT, fontSize: 16, fontWeight: '600' }}>Resend OTP</Text>
                             </TouchableOpacity>
                         </>
-                    ) : editingField && activeField ? (
-                        /* ── Inline editor ── */
-                        <>
-                            <Text style={s.sectionLabel}>{activeField.label}</Text>
-                            <View style={s.divider} />
-
-                            {activeField.secure ? (
-                                <>
-                                    {/* New value */}
-                                    <View style={s.passwordRow}>
-                                        <TextInput
-                                            style={s.passwordInput}
-                                            placeholder={activeField.placeholder}
-                                            placeholderTextColor="#aaa"
-                                            secureTextEntry={!showPassword}
-                                            value={fieldValue}
-                                            onChangeText={t => {
-                                                setError(null);
-                                                if (activeField.keyboard === 'number-pad') {
-                                                    setFieldValue(t.replace(/[^0-9]/g, ''));
-                                                } else {
-                                                    setFieldValue(t);
-                                                }
-                                            }}
-                                            maxLength={activeField.maxLength}
-                                            autoCapitalize="none"
-                                            keyboardType={activeField.keyboard ?? 'default'}
-                                        />
-                                        <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={s.eyeBtn}>
-                                            <EyeIcon visible={showPassword} />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    {/* Confirm */}
-                                    <View style={[s.passwordRow, { marginTop: 12 }]}>
-                                        <TextInput
-                                            style={s.passwordInput}
-                                            placeholder={activeField.confirmPlaceholder}
-                                            placeholderTextColor="#aaa"
-                                            secureTextEntry={!showConfirm}
-                                            value={confirmValue}
-                                            onChangeText={t => {
-                                                setError(null);
-                                                if (activeField.keyboard === 'number-pad') {
-                                                    setConfirmValue(t.replace(/[^0-9]/g, ''));
-                                                } else {
-                                                    setConfirmValue(t);
-                                                }
-                                            }}
-                                            maxLength={activeField.maxLength}
-                                            autoCapitalize="none"
-                                            keyboardType={activeField.keyboard ?? 'default'}
-                                        />
-                                        <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={s.eyeBtn}>
-                                            <EyeIcon visible={showConfirm} />
-                                        </TouchableOpacity>
-                                    </View>
-                                </>
-                            ) : (
-                                <TextInput
-                                    style={s.input}
-                                    placeholder={activeField.placeholder}
-                                    placeholderTextColor="#aaa"
-                                    value={fieldValue}
-                                    onChangeText={t => {
-                                        setError(null);
-                                        if (activeField.keyboard === 'phone-pad') {
-                                            setFieldValue(t.replace(/[^0-9]/g, ''));
-                                        } else {
-                                            setFieldValue(t);
-                                        }
-                                    }}
-                                    keyboardType={activeField.keyboard ?? 'default'}
-                                    maxLength={activeField.maxLength}
-                                    autoCapitalize={activeField.key === 'email' ? 'none' : 'words'}
-                                    autoFocus
-                                />
-                            )}
-
-                            {error && <Text style={s.errorText}>{error}</Text>}
-
-                            <TouchableOpacity style={[s.saveBtn, saving && s.saveBtnDim]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
-                                {saving
-                                    ? <ActivityIndicator color="#fff" />
-                                    : <Text style={s.saveBtnText}>SAVE</Text>}
-                            </TouchableOpacity>
-                        </>
                     ) : (
-                        /* ── Field list ── */
                         <>
                             <Text style={s.sectionLabel}>Personal details</Text>
                             <View style={s.divider} />
 
-                            {FIELDS.map(f => (
-                                <TouchableOpacity key={f.key} style={s.fieldCard} activeOpacity={0.7} onPress={() => startEditing(f.key)}>
-                                    <View style={s.fieldInfo}>
-                                        <Text style={s.fieldLabel}>{f.label}</Text>
-                                        <Text style={[s.fieldValue, !displayValues[f.key] && s.fieldPlaceholder]}>
-                                            {displayValues[f.key] || `Add ${f.label.toLowerCase()}`}
-                                        </Text>
-                                    </View>
-                                    <Ionicons name="pencil" size={18} color={ACCENT} />
-                                </TouchableOpacity>
-                            ))}
+                            {FIELDS.map(f => {
+                                const isEditing = editingFields[f.key];
+                                const isSecure = f.secure;
 
-                            <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7}>
-                                <Text style={s.deleteText}>Delete my account</Text>
-                            </TouchableOpacity>
+                                return (
+                                    <View key={f.key} style={[s.fieldCard, isEditing && s.fieldCardEditing]}>
+                                        <View style={s.fieldInfo}>
+                                            <Text style={s.fieldLabel}>{f.label}</Text>
+                                            
+                                            {isEditing ? (
+                                                <View style={{ marginTop: 6 }}>
+                                                    {isSecure ? (
+                                                        <>
+                                                            <View style={s.passwordRow}>
+                                                                <TextInput
+                                                                    style={s.passwordInput}
+                                                                    placeholder={f.placeholder}
+                                                                    placeholderTextColor="#aaa"
+                                                                    secureTextEntry={!showPassword}
+                                                                    value={formValues[f.key]}
+                                                                    onChangeText={t => setFormValues(prev => ({ ...prev, [f.key]: f.keyboard === 'number-pad' ? t.replace(/[^0-9]/g, '') : t }))}
+                                                                    maxLength={f.maxLength}
+                                                                    autoCapitalize="none"
+                                                                    keyboardType={f.keyboard ?? 'default'}
+                                                                />
+                                                                <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={s.eyeBtn}>
+                                                                    <EyeIcon visible={showPassword} />
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                            <View style={[s.passwordRow, { marginTop: 8 }]}>
+                                                                <TextInput
+                                                                    style={s.passwordInput}
+                                                                    placeholder={f.confirmPlaceholder}
+                                                                    placeholderTextColor="#aaa"
+                                                                    secureTextEntry={!showConfirm}
+                                                                    value={f.key === 'password' ? formValues.confirmPassword : formValues.confirmMpin}
+                                                                    onChangeText={t => setFormValues(prev => ({ ...prev, [f.key === 'password' ? 'confirmPassword' : 'confirmMpin']: f.keyboard === 'number-pad' ? t.replace(/[^0-9]/g, '') : t }))}
+                                                                    maxLength={f.maxLength}
+                                                                    autoCapitalize="none"
+                                                                    keyboardType={f.keyboard ?? 'default'}
+                                                                />
+                                                                <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={s.eyeBtn}>
+                                                                    <EyeIcon visible={showConfirm} />
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        </>
+                                                    ) : (
+                                                        <TextInput
+                                                            style={[s.input, { paddingVertical: 8, paddingHorizontal: 12 }]}
+                                                            value={formValues[f.key]}
+                                                            onChangeText={t => setFormValues(prev => ({ ...prev, [f.key]: f.keyboard === 'phone-pad' ? t.replace(/[^0-9]/g, '') : t }))}
+                                                            placeholder={f.placeholder}
+                                                            placeholderTextColor="#aaa"
+                                                            keyboardType={f.keyboard ?? 'default'}
+                                                            maxLength={f.maxLength}
+                                                            autoCapitalize={f.key === 'email' ? 'none' : 'words'}
+                                                            autoFocus
+                                                            onBlur={() => toggleEditing(f.key)}
+                                                            onSubmitEditing={() => toggleEditing(f.key)}
+                                                            returnKeyType="done"
+                                                        />
+                                                    )}
+                                                </View>
+                                            ) : (
+                                                <Text style={[s.fieldValue, (!formValues[f.key] && !isSecure) && s.fieldPlaceholder]}>
+                                                    {isSecure ? (formValues[f.key] ? '••••••••' : (f.key === 'password' ? '••••••••' : (user?.hasMpin ? '••••' : 'Add MPIN'))) : (formValues[f.key] || `Add ${f.label.toLowerCase()}`)}
+                                                </Text>
+                                            )}
+                                        </View>
+                                        
+                                        {!isEditing && (
+                                            <TouchableOpacity style={s.editBtn} activeOpacity={0.7} onPress={() => toggleEditing(f.key)}>
+                                                <Ionicons name="pencil" size={18} color={ACCENT} />
+                                            </TouchableOpacity>
+                                        )}
+                                        {isEditing && isSecure && (
+                                            <TouchableOpacity style={[s.editBtn, { alignSelf: 'flex-start', marginTop: 4 }]} activeOpacity={0.7} onPress={() => toggleEditing(f.key)}>
+                                                <Ionicons name="checkmark" size={24} color={ACCENT} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                );
+                            })}
+
+                            {error && <Text style={s.errorText}>{error}</Text>}
+
+                            {hasChanges && (
+                                <View style={{ marginTop: 20 }}>
+                                    <TouchableOpacity style={[s.saveBtn, saving && s.saveBtnDim, { marginTop: 0 }]} onPress={handleSave} disabled={saving} activeOpacity={0.85}>
+                                        {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnText}>SAVE CHANGES</Text>}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7} onPress={handleCancel} disabled={saving}>
+                                        <Text style={[s.deleteText, { textDecorationLine: 'none', color: '#666' }]}>Cancel</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {!hasChanges && (
+                                <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7}>
+                                    <Text style={s.deleteText}>Delete my account</Text>
+                                </TouchableOpacity>
+                            )}
                         </>
                     )}
                 </ScrollView>
@@ -411,7 +442,6 @@ const s = StyleSheet.create({
     safe: { flex: 1, backgroundColor: '#FFF3EC' },
     flex: { flex: 1 },
 
-    // Top
     topSection: { paddingBottom: 40 },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
     headerTitle: { fontSize: 18, fontWeight: '700', color: ACCENT },
@@ -419,26 +449,25 @@ const s = StyleSheet.create({
     avatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 2.5, borderColor: ACCENT, backgroundColor: '#FFD0B0', alignItems: 'center', justifyContent: 'center' },
     avatarText: { fontSize: 24, fontWeight: '700', color: ACCENT },
 
-    // Card
     card: { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20 },
     cardContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 40 },
 
     sectionLabel: { fontSize: 15, fontWeight: '700', color: '#333', marginBottom: 6 },
     divider: { height: 1.5, backgroundColor: '#e0e0e0', marginBottom: 16 },
 
-    // Field list
     fieldCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#e8e8e8', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 14, backgroundColor: '#fff' },
+    fieldCardEditing: { alignItems: 'flex-start', paddingVertical: 12 },
     fieldInfo: { flex: 1 },
     fieldLabel: { fontSize: 12, color: '#999', marginBottom: 4 },
     fieldValue: { fontSize: 15, fontWeight: '600', color: '#333' },
     fieldPlaceholder: { color: '#aaa', fontWeight: '400' },
+    editBtn: { padding: 4, marginLeft: 8 },
 
-    // Editor
     input: { borderWidth: 1.5, borderColor: '#e8e8e8', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1a1a1a', backgroundColor: '#fff' },
     passwordRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#e8e8e8', borderRadius: 12, backgroundColor: '#fff' },
-    passwordInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1a1a1a' },
-    eyeBtn: { paddingHorizontal: 14, paddingVertical: 14 },
-    errorText: { fontSize: 13, color: '#e53935', marginTop: 8 },
+    passwordInput: { flex: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, color: '#1a1a1a' },
+    eyeBtn: { paddingHorizontal: 10, paddingVertical: 8 },
+    errorText: { fontSize: 13, color: '#e53935', marginTop: 8, textAlign: 'center' },
 
     saveBtn: { backgroundColor: ACCENT, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 20 },
     saveBtnDim: { opacity: 0.5 },
