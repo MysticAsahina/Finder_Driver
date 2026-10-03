@@ -13,6 +13,7 @@ if (Platform.OS === 'web' && !(RN as any).requireNativeComponent) {
 
 import AppLifecycleObserver from '@/components/AppLifecycleObserver';
 import GlobalCallListener from '@/components/GlobalCallListener';
+import GlobalRideRequestListener from '@/components/GlobalRideRequestListener';
 import { AuthProvider } from '@/context/AuthContext';
 import { SocketProvider } from '@/context/SocketContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -55,6 +56,7 @@ export default function RootLayout() {
     <AuthProvider>
       <SocketProvider>
         <GlobalCallListener />
+        <GlobalRideRequestListener />
         <SafeAreaProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <AppLifecycleObserver />

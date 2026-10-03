@@ -174,7 +174,24 @@ export default function HomeScreen() {
           if (res.data && res.data.ride) {
               const ride = res.data.ride;
               setCurrentRide(ride);
-              if (ride.status === 'driver_assigned') {
+              if (ride.status === 'pending') {
+                  setRideState('idle');
+                  setCurrentRide(null);
+                  const elapsedSeconds = Math.floor((new Date().getTime() - new Date(ride.updatedAt).getTime()) / 1000);
+                  const remaining = Math.max(0, 30 - elapsedSeconds);
+                  if (remaining > 0) {
+                      setIncomingRide({
+                          rideId: ride._id,
+                          pickup: ride.pickup,
+                          dropoff: ride.dropoff,
+                          fare: ride.fare,
+                          distanceKm: ride.distanceKm,
+                      });
+                      setTimeLeft(remaining);
+                  } else {
+                      setIncomingRide(null);
+                  }
+              } else if (ride.status === 'driver_assigned') {
                   setRideState('pickup');
               } else if (ride.status === 'arrived_pickup') {
                   setRideState('arrived');
@@ -185,10 +202,12 @@ export default function HomeScreen() {
               } else {
                   setRideState('idle');
                   setCurrentRide(null);
+                  setIncomingRide(null);
               }
           } else {
               setRideState('idle');
               setCurrentRide(null);
+              setIncomingRide(null);
           }
       } catch (err) {
           console.log('Failed to sync on reconnect');
@@ -457,7 +476,24 @@ export default function HomeScreen() {
           if (rideData.ride) {
               const ride = rideData.ride;
               setCurrentRide(ride);
-              if (ride.status === 'driver_assigned') {
+              if (ride.status === 'pending') {
+                  setRideState('idle');
+                  setCurrentRide(null);
+                  const elapsedSeconds = Math.floor((new Date().getTime() - new Date(ride.updatedAt).getTime()) / 1000);
+                  const remaining = Math.max(0, 30 - elapsedSeconds);
+                  if (remaining > 0) {
+                      setIncomingRide({
+                          rideId: ride._id,
+                          pickup: ride.pickup,
+                          dropoff: ride.dropoff,
+                          fare: ride.fare,
+                          distanceKm: ride.distanceKm,
+                      });
+                      setTimeLeft(remaining);
+                  } else {
+                      setIncomingRide(null);
+                  }
+              } else if (ride.status === 'driver_assigned') {
                   setRideState('pickup');
                   snapToExpanded();
               } else if (ride.status === 'arrived_pickup') {
@@ -470,10 +506,13 @@ export default function HomeScreen() {
                   setRideState('dropoff_summary');
               } else {
                   setRideState('idle');
+                  setCurrentRide(null);
+                  setIncomingRide(null);
               }
             } else {
                 setRideState('idle');
                 setCurrentRide(null);
+                setIncomingRide(null);
             }
         } catch (err) {
           console.error(err);
