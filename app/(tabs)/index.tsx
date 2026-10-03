@@ -672,14 +672,17 @@ export default function HomeScreen() {
               { text: 'Cancel', style: 'cancel' },
               {
                   text: 'Send SMS',
-                  onPress: () => {
-                      const msg = `EMERGENCY: I am a FINDER driver on an active trip. Please contact or track me. (Trip ID: ${currentRide?._id})`;
-                      const separator = Platform.OS === 'ios' ? '&' : '?';
-                      const url = `sms:${emergencyContact.mobileNumber}${separator}body=${encodeURIComponent(msg)}`;
-                      Linking.openURL(url).catch(err => {
+                  onPress: async () => {
+                      try {
+                          await api.post('/emergency-contact/trigger', {
+                              latitude: location?.coords?.latitude,
+                              longitude: location?.coords?.longitude,
+                          });
+                          Alert.alert('Emergency Alert Sent', 'An SMS alert has been sent to your emergency contact automatically.');
+                      } catch (err: any) {
                           console.error(err);
-                          Alert.alert('Error', 'Could not open SMS application.');
-                      });
+                          Alert.alert('Error', err.response?.data?.message || 'Failed to send emergency alert.');
+                      }
                   }
               }
           ]
