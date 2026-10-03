@@ -60,6 +60,22 @@ export default function EnterMpinScreen() {
         }
     };
 
+    const handleForgotMpin = async () => {
+        if (loading) return;
+        setLoading(true);
+        setError(null);
+        try {
+            await api.post('/auth/forgot-mpin', {}, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            router.push({ pathname: '/otp', params: { flow: 'forgot-mpin' } });
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to request MPIN reset.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <KeyboardAvoidingView
@@ -121,7 +137,7 @@ export default function EnterMpinScreen() {
                     </View>
 
                     {/* Forgot MPIN */}
-                    <TouchableOpacity style={styles.forgotBtn} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.forgotBtn} activeOpacity={0.7} onPress={handleForgotMpin}>
                         <Text style={styles.forgotText}>Forgot MPIN?</Text>
                     </TouchableOpacity>
 

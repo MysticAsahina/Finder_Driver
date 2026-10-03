@@ -29,7 +29,7 @@ const OTP_LENGTH = 6;
 
 export default function OtpScreen() {
   const router  = useRouter();
-  const { setAccessToken, setUser, setEmergencyContactState } = useContext(AuthContext);
+  const { accessToken, setAccessToken, setUser, setEmergencyContactState } = useContext(AuthContext);
   const { flow } = useLocalSearchParams<{ flow?: string }>();
   const isLogin = flow === 'login';
 
@@ -82,6 +82,20 @@ export default function OtpScreen() {
         clearAuth();
         router.replace('/(tabs)');
 
+      } else if (flow === 'forgot-mpin') {
+        // --------------- Forgot MPIN OTP flow ---------------
+        const token = accessToken;
+        if (!token) {
+          setError('Session expired. Please log in again.');
+          return;
+        }
+
+        await api.post('/auth/forgot-mpin/verify-otp', { code: otp.join('') }, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        
+        setUser((prev: any) => prev ? { ...prev, hasMpin: false } : prev);
+        router.replace('/(tabs)');
       } else {
         // --------------- Registration OTP flow ---------------
         const token = getDriverRegToken();
@@ -129,6 +143,19 @@ export default function OtpScreen() {
           setError(err.response?.data?.message || 'Failed to resend OTP.');
         }
 
+      } else if (flow === 'forgot-mpin') {
+        const token = accessToken;
+        if (!token) {
+          setError('Session expired. Please log in again.');
+          return;
+        }
+        try {
+          await api.post('/auth/forgot-mpin', {}, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Failed to resend OTP.');
+        }
       } else {
         // --------------- Registration resend ---------------
         const token = getDriverRegToken();
