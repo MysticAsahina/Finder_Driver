@@ -58,6 +58,7 @@ export default function HomeScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
   const mapRef = useRef<MapView>(null);
+  const initialEtaSent = useRef<{ [rideId: string]: boolean }>({});
   
   const { accessToken, emergencyContact } = useContext(AuthContext);
   const { socket, isConnected } = useContext(SocketContext);
@@ -296,11 +297,15 @@ export default function HomeScreen() {
       if (rideState === 'idle' || rideState === 'dropoff_summary' || !currentRide || !socket || !isConnected) return;
       const interval = setInterval(() => {
           if (location) {
-             socket.emit('driver_location_update', { rideId: currentRide._id, location: { latitude: location.coords.latitude, longitude: location.coords.longitude } });
+             socket.emit('driver_location_update', { 
+               rideId: currentRide._id, 
+               location: { latitude: location.coords.latitude, longitude: location.coords.longitude },
+               duration: routeDuration
+             });
           }
       }, 5000); // update every 5 seconds
       return () => clearInterval(interval);
-  }, [rideState, currentRide, socket, isConnected, location]);
+  }, [rideState, currentRide, socket, isConnected, location, routeDuration]);
 
   const showSystemActiveToast = () => {
     RNAnimated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
@@ -851,6 +856,10 @@ export default function HomeScreen() {
                 onReady={result => {
                     setRouteDistance(result.distance);
                     setRouteDuration(result.duration);
+                    if (rideState === 'pickup' && currentRide && !initialEtaSent.current[currentRide._id]) {
+                      initialEtaSent.current[currentRide._id] = true;
+                      api.patch(`/driver/ride/${currentRide._id}/eta`, { duration: result.duration }).catch(console.error);
+                    }
                 }}
                 onError={(errorMessage) => {
                     console.error('MapViewDirections Error:', errorMessage);
