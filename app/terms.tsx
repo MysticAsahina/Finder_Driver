@@ -90,6 +90,12 @@ function TermsOfService() {
                 and may experience downtime due to maintenance or technical limitations.
             </Paragraph>
             <Paragraph>
+                The app may not work as expected if the connection is slow.
+            </Paragraph>
+            <Paragraph>
+                The FINDER development team is not liable to any issues outside of the app (i.e. Drivers and Admin behavior, fare matrix changes, etc.).
+            </Paragraph>
+            <Paragraph>
                 Accounts may be restricted or disabled in cases of policy violations, misuse of the system,
                 or actions that compromise data security and user safety.
             </Paragraph>
