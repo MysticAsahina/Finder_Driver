@@ -17,6 +17,7 @@ const OPTIONS = [
     { icon: 'alert-circle-outline' as const, label: 'One Tap Emergency' },
     { icon: 'document-text-outline' as const, label: 'Terms and Privacy Policy' },
     { icon: 'information-circle-outline' as const, label: 'About FINDER' },
+    { icon: 'trash-outline' as const, label: 'Delete Account' },
 ];
 
 export default function UserScreen() {
@@ -109,6 +110,8 @@ export default function UserScreen() {
                                     router.push('/help-centre');
                                 } else if (item.label === 'One Tap Emergency') {
                                     router.push('/emergency-contact');
+                                } else if (item.label === 'Delete Account') {
+                                    router.push('/delete-account' as any);
                                 }
                             }}
                         >
