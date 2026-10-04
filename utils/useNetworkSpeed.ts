@@ -5,7 +5,7 @@ export function useNetworkSpeed(pingIntervalMs = 15000, thresholdMs = 1500) {
   const [isSlowNetwork, setIsSlowNetwork] = useState(false);
 
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setInterval>;
     
     const checkSpeed = async () => {
       const startTime = Date.now();
