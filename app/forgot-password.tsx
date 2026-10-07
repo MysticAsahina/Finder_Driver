@@ -52,7 +52,7 @@ export default function ForgotPasswordScreen() {
         }
         setLoading(true);
         try {
-            const res  = await api.post('/auth/forgot-password', { mobileNumber: mobile.trim() });
+            const res  = await api.post('/auth/forgot-password', { mobileNumber: mobile.trim(), role: 'driver' });
             const data = res.data;
             setToken(data.token ?? '');
             setStep('otp');

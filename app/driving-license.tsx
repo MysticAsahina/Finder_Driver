@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/theme';
-import { setDriverRegLicense } from '@/store/driverRegistrationStore';
+import { setDriverRegLicense, getDriverRegStore } from '@/store/driverRegistrationStore';
 import { getAndClearPendingImage } from '@/store/imageStore';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -99,10 +99,11 @@ function toUtcDateISOString(date: Date): string {
 
 export default function DrivingLicenseScreen() {
   const router = useRouter();
-  const [frontImage, setFrontImage] = useState<string | null>(null);
-  const [backImage, setBackImage] = useState<string | null>(null);
-  const [licenseNumber, setLicenseNumber] = useState('');
-  const [expirationDate, setExpirationDate] = useState<Date | null>(null);
+  const store = getDriverRegStore();
+  const [frontImage, setFrontImage] = useState<string | null>(store.licenseImgFront);
+  const [backImage, setBackImage] = useState<string | null>(store.licenseImgBack);
+  const [licenseNumber, setLicenseNumber] = useState(store.licenseNumber || '');
+  const [expirationDate, setExpirationDate] = useState<Date | null>(store.licenseExpDate ? new Date(store.licenseExpDate) : null);
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

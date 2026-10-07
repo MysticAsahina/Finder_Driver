@@ -15,10 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT = Colors.light.tint;
 
+import { getDriverRegStore } from '@/store/driverRegistrationStore';
+
 export default function VehicleRegistrationScreen() {
   const router = useRouter();
-  const [orImage, setOrImage] = useState<string | null>(null);
-  const [crImage, setCrImage] = useState<string | null>(null);
+  const store = getDriverRegStore();
+  const [orImage, setOrImage] = useState<string | null>(store.tricycleOR);
+  const [crImage, setCrImage] = useState<string | null>(store.regCert);
   const [error,   setError]   = useState<string | null>(null);
 
   useFocusEffect(

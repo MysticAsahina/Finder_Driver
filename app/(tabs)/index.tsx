@@ -1,7 +1,7 @@
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView, AppState } from 'react-native';
-import MapView, { Marker, MapViewDirections } from '@/components/MapWrapper';
+import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView, AppState, Vibration } from 'react-native';
+import MapView, { Marker, Polygon, MapViewDirections } from '@/components/MapWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
@@ -23,6 +23,13 @@ import Animated, {
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const ACCENT = Colors.light.tint;
+
+const CABANATUAN_BOUNDARY = [
+  { latitude: 15.58, longitude: 120.90 },
+  { latitude: 15.58, longitude: 121.05 },
+  { latitude: 15.42, longitude: 121.05 },
+  { latitude: 15.42, longitude: 120.90 },
+];
 const ONLINE_GREEN = '#22c55e';
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -43,6 +50,48 @@ export default function HomeScreen() {
   const [currentRide, setCurrentRide] = useState<any>(null);
   const [routeDistance, setRouteDistance] = useState<number>(0);
   const [routeDuration, setRouteDuration] = useState<number>(0);
+  const [routeOrigin, setRouteOrigin] = useState<{latitude: number, longitude: number} | null>(null);
+
+  // When rideState changes, reset routeOrigin
+  useEffect(() => {
+    if (rideState !== 'pickup' && rideState !== 'trip_started') {
+       setRouteOrigin(null);
+    }
+  }, [rideState]);
+
+  useEffect(() => {
+     if (!routeOrigin && location && (rideState === 'pickup' || rideState === 'trip_started')) {
+         setRouteOrigin({ latitude: location.coords.latitude, longitude: location.coords.longitude });
+     }
+  }, [location, rideState, routeOrigin]);
+
+  const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[]>([]);
+
+  const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  };
+
+  useEffect(() => {
+     if (routeCoords.length > 0 && location && (rideState === 'pickup' || rideState === 'trip_started')) {
+         const dLoc = location.coords;
+         let minDistance = Infinity;
+         for (const pt of routeCoords) {
+             const d = getDistanceFromLatLonInKm(dLoc.latitude, dLoc.longitude, pt.latitude, pt.longitude);
+             if (d < minDistance) minDistance = d;
+         }
+         if (minDistance > 0.15) {
+             setRouteOrigin({ latitude: dLoc.latitude, longitude: dLoc.longitude });
+             setRouteCoords([]);
+         }
+     }
+  }, [location, routeCoords, rideState]);
 
   const [showEarnings, setShowEarnings] = useState(false);
   const [dailyEarnings, setDailyEarnings] = useState<number | null>(null);
@@ -160,14 +209,8 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!socket || !currentRide?._id) return;
 
-    // Join immediately
-    if (isConnected) {
-      socket.emit('join_ride', { rideId: currentRide._id });
-    }
-
-    // Direct listener for reconnections (bypasses React state delays after OS sleep)
-    const handleReconnect = async () => {
-      console.log('Driver socket reconnected! Re-joining ride room...');
+    const syncWithBackend = async () => {
+      console.log('Driver socket connected! Syncing ride room...');
       socket.emit('join_ride', { rideId: currentRide._id });
       try {
           const res = await api.get('/driver/ride/current');
@@ -214,10 +257,14 @@ export default function HomeScreen() {
       }
     };
 
-    socket.on('connect', handleReconnect);
+    if (isConnected) {
+       syncWithBackend();
+    }
+
+    socket.on('connect', syncWithBackend);
 
     return () => {
-      socket.off('connect', handleReconnect);
+      socket.off('connect', syncWithBackend);
     };
   }, [socket, currentRide?._id, isConnected]);
   const [fareSettings, setFareSettings] = useState({ baseFare: 25, perKmFare: 8.5, baseDistance: 3 });
@@ -244,6 +291,7 @@ export default function HomeScreen() {
       if (rideState === 'idle') {
         setIncomingRide(data);
         setTimeLeft(30); // 30 seconds to accept
+        Vibration.vibrate([0, 500, 200, 500]); // Vibrate twice
       }
     });
 
@@ -859,6 +907,13 @@ export default function HomeScreen() {
         showsUserLocation
         showsMyLocationButton={false}
       >
+        <Polygon
+          coordinates={CABANATUAN_BOUNDARY}
+          strokeColor={ACCENT}
+          strokeWidth={2}
+          lineDashPattern={[10, 10]}
+          fillColor="rgba(255, 95, 0, 0.05)"
+        />
         {incomingRide && rideState === 'idle' && (
           <Marker
             coordinate={{
@@ -878,10 +933,10 @@ export default function HomeScreen() {
             <Marker coordinate={{ latitude: dLat, longitude: dLng }} title="Drop off Location" />
         )}
 
-        {location && (rideState === 'pickup' || rideState === 'trip_started') && (
+        {routeOrigin && (rideState === 'pickup' || rideState === 'trip_started') && (
             <MapViewDirections
                 key={rideState}
-                origin={{ latitude: location.coords.latitude, longitude: location.coords.longitude }}
+                origin={routeOrigin}
                 destination={
                     rideState === 'pickup'
                         ? { latitude: pLat, longitude: pLng }
@@ -895,6 +950,7 @@ export default function HomeScreen() {
                 onReady={result => {
                     setRouteDistance(result.distance);
                     setRouteDuration(result.duration);
+                    setRouteCoords(result.coordinates);
                     if (rideState === 'pickup' && currentRide && !initialEtaSent.current[currentRide._id]) {
                       initialEtaSent.current[currentRide._id] = true;
                       api.patch(`/driver/ride/${currentRide._id}/eta`, { duration: result.duration }).catch(console.error);
@@ -909,7 +965,7 @@ export default function HomeScreen() {
 
       {/* Network Warning Banner */}
       {isSlowNetwork && (
-        <View style={{ position: 'absolute', top: insets.top + 10, alignSelf: 'center', backgroundColor: 'rgba(220, 53, 69, 0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
+        <View style={{ position: 'absolute', top: insets.top + 60, alignSelf: 'center', backgroundColor: 'rgba(220, 53, 69, 0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
           <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>⚠️ Slow Network Connection</Text>
         </View>
       )}

@@ -15,10 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT = Colors.light.tint;
 
+import { getDriverRegStore } from '@/store/driverRegistrationStore';
+
 export default function FaceVerificationScreen() {
   const router = useRouter();
-  const [selfieImage,  setSelfieImage]  = useState<string | null>(null);
-  const [holdingImage, setHoldingImage] = useState<string | null>(null);
+  const store = getDriverRegStore();
+  const [selfieImage,  setSelfieImage]  = useState<string | null>(store.faceImg);
+  const [holdingImage, setHoldingImage] = useState<string | null>(store.idImg);
   const [error,        setError]        = useState<string | null>(null);
 
   useFocusEffect(

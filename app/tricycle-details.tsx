@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/theme';
-import { setDriverRegTricycleDetails } from '@/store/driverRegistrationStore';
+
 import { getAndClearPendingImage } from '@/store/imageStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -29,12 +29,15 @@ function validatePlate(v: string): string | null {
   return null;
 }
 
+import { getDriverRegStore, setDriverRegTricycleDetails } from '@/store/driverRegistrationStore';
+
 export default function TricycleDetailsScreen() {
   const router = useRouter();
-  const [frontImage,   setFrontImage]   = useState<string | null>(null);
-  const [backImage,    setBackImage]    = useState<string | null>(null);
-  const [brandModel,   setBrandModel]   = useState('');
-  const [plateNumber,  setPlateNumber]  = useState('');
+  const store = getDriverRegStore();
+  const [frontImage,   setFrontImage]   = useState<string | null>(store.tricycleImgFront);
+  const [backImage,    setBackImage]    = useState<string | null>(store.tricycleImgBack);
+  const [brandModel,   setBrandModel]   = useState(store.motorcycleBrand || '');
+  const [plateNumber,  setPlateNumber]  = useState(store.plateNumber || '');
   const [error,        setError]        = useState<string | null>(null);
 
   useFocusEffect(

@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 14,
         fontSize: 16,
+        color: '#333',
         marginBottom: 20,
     },
     errorText: {

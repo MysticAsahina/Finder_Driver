@@ -73,8 +73,9 @@ async function submitApplication(router: ReturnType<typeof useRouter>) {
 
 export default function CreatePasswordScreen() {
   const router = useRouter();
-  const [password,        setPassword]        = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const store = getDriverRegStore();
+  const [password,        setPassword]        = useState(store.password || '');
+  const [confirmPassword, setConfirmPassword] = useState(store.confirmPassword || '');
   const [showPassword,    setShowPassword]    = useState(false);
   const [showConfirm,     setShowConfirm]     = useState(false);
   const [showPinModal,    setShowPinModal]    = useState(false);
