@@ -76,6 +76,16 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        if (error.response?.status === 403 && error.response?.data?.message === "Account suspended.") {
+            const { Alert } = require('react-native');
+            Alert.alert("Account Suspended", "Your account has been suspended by an administrator.");
+            await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
+            await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+            await setAxiosAccessToken(null);
+            if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
+            return Promise.reject(error);
+        }
+
         if (error.response?.status === 401 && !originalRequest._retry) {
             if (error.response?.data?.message === "Session expired due to login on another device.") {
                 // Check if the foreground app just logged in and we're just using an old token in memory
