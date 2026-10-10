@@ -907,13 +907,7 @@ export default function HomeScreen() {
         showsUserLocation
         showsMyLocationButton={false}
       >
-        <Polygon
-          coordinates={CABANATUAN_BOUNDARY}
-          strokeColor={ACCENT}
-          strokeWidth={2}
-          lineDashPattern={[10, 10]}
-          fillColor="rgba(255, 95, 0, 0.05)"
-        />
+
         {incomingRide && rideState === 'idle' && (
           <Marker
             coordinate={{
