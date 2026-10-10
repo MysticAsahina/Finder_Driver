@@ -44,6 +44,11 @@ export const setAxiosAccessToken = async (token: string | null) => {
     }
 };
 
+export let onTokenRefresh: ((token: string) => void) | null = null;
+export const setOnTokenRefresh = (callback: (token: string) => void) => {
+    onTokenRefresh = callback;
+};
+
 api.interceptors.request.use(
     async (config) => {
         let token = currentAccessToken;
@@ -147,6 +152,7 @@ api.interceptors.response.use(
                 }
                 
                 await setAxiosAccessToken(newAccessToken);
+                if (onTokenRefresh) onTokenRefresh(newAccessToken);
                 originalRequest.headers['Authorization'] = 'Bearer ' + newAccessToken;
                 
                 processQueue(null, newAccessToken);
@@ -158,6 +164,7 @@ api.interceptors.response.use(
                     const newAccess = await SecureStore.getItemAsync('accessToken').catch(() => null);
                     if (newAccess) {
                         await setAxiosAccessToken(newAccess);
+                        if (onTokenRefresh) onTokenRefresh(newAccess);
                         originalRequest.headers['Authorization'] = 'Bearer ' + newAccess;
                         processQueue(null, newAccess);
                         isRefreshing = false;

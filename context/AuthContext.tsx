@@ -59,6 +59,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (accessToken) {
+      setAxiosAccessToken(accessToken);
+    } else {
+      setAxiosAccessToken(null);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    import('../utils/axios').then(({ setOnTokenRefresh }) => {
+      setOnTokenRefresh((token) => {
+        setAccessToken(token);
+      });
+    });
+  }, []);
+
+  useEffect(() => {
     if (accessToken && !DEV_BYPASS_AUTH) {
       registerPushToken(accessToken);
     }
