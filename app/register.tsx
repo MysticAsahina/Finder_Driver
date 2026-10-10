@@ -20,12 +20,14 @@ const MAX_NAME    = 50;
 function validateFirstName(v: string): string | null {
   if (!v.trim())            return 'First name is required.';
   if (v.trim().length > MAX_NAME) return `First name must be ${MAX_NAME} characters or fewer.`;
+  if (!/^[A-Za-z\s'-]+$/.test(v.trim())) return "First name can only contain letters, spaces, hyphens, and apostrophes.";
   return null;
 }
 
 function validateLastName(v: string): string | null {
   if (!v.trim())            return 'Last name is required.';
   if (v.trim().length > MAX_NAME) return `Last name must be ${MAX_NAME} characters or fewer.`;
+  if (!/^[A-Za-z\s'-]+$/.test(v.trim())) return "Last name can only contain letters, spaces, hyphens, and apostrophes.";
   return null;
 }
 
