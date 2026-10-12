@@ -3,7 +3,7 @@ import { AuthContext } from '@/context/AuthContext';
 import { getAppealToken } from '@/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState, useCallback } from 'react';
 import {
     FlatList, KeyboardAvoidingView, Platform,
     StyleSheet,
@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import api from '@/utils/axios';
+import { getAppealToken } from '@/store/authStore';
 import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
@@ -42,11 +43,59 @@ export default function SupportChatScreen() {
     const [isResolved, setIsResolved] = useState(false);
     const socketRef = useRef<Socket | null>(null);
     const listRef = useRef<FlatList>(null);
-    const [pendingMedia, setPendingMedia] = useState<{ uri: string, mediaType: 'image' | 'video', fileName: string } | null>(null);
+    const [pendingMedia, setPendingMedia] = useState<{ uri: string, mediaType: 'image' | 'video', fileName: string, base64?: string | null } | null>(null);
     const [uploading, setUploading] = useState(false);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+    const isAppeal = params.isAppeal === 'true';
+    const token = accessToken || getAppealToken();
+
+    const loadAppealChat = useCallback(async () => {
+        if (!token) return;
+        try {
+            const appealRes = await api.get('/appeals/my-appeal', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const appData = appealRes.data?.appeal;
+            if (appData) {
+                const loadedMsgs: Message[] = [];
+                if (appData.reason) {
+                    loadedMsgs.push({
+                        _id: 'initial-' + (appData._id || '0'),
+                        ticketId: appData._id || 'appeal',
+                        senderId: appData.userId || '',
+                        senderRole: 'driver',
+                        body: appData.reason,
+                        createdAt: appData.createdAt || new Date().toISOString(),
+                        mediaUrl: appData.proofMedia || undefined,
+                        mediaType: appData.proofMedia ? 'image' : undefined,
+                    });
+                }
+                if (Array.isArray(appData.messages)) {
+                    appData.messages.forEach((m: any, idx: number) => {
+                        const isAdmin = m.senderRole === 'admin';
+                        loadedMsgs.push({
+                            _id: m._id || `msg-${idx}-${m.createdAt || Date.now()}`,
+                            ticketId: appData._id || 'appeal',
+                            senderId: m.senderId || '',
+                            senderRole: isAdmin ? 'admin' : 'driver',
+                            body: m.body,
+                            createdAt: m.createdAt || new Date().toISOString(),
+                            mediaUrl: m.mediaUrl,
+                            mediaType: m.mediaType,
+                        });
+                    });
+                }
+                setMsgs(loadedMsgs);
+                setIsResolved(appData.status !== 'pending');
+            }
+        } catch (e) {
+            console.error("Failed to load appeal", e);
+        }
+    }, [token]);
+
     const ensureTicket = async () => {
+        if (isAppeal) return ticketId || 'appeal';
         try {
             if (!ticketId) {
                 const ticketsRes = await api.get('/support/tickets');
@@ -73,9 +122,65 @@ export default function SupportChatScreen() {
     };
 
     useEffect(() => {
-        if (!accessToken) return;
+        if (!token) return;
 
         let socket: Socket;
+
+        if (isAppeal) {
+            loadAppealChat();
+
+            socket = io(API_URL, {
+                auth: { token },
+                transports: ['websocket'],
+            });
+
+            socket.on('connect', () => {
+                if (ticketId) {
+                    socket.emit('join_ticket', { ticketId });
+                    socket.emit('join_appeal', { appealId: ticketId });
+                }
+            });
+
+            socket.on('receive_message', (newMsg: Message) => {
+                loadAppealChat();
+            });
+            socket.on('appeal_message', () => {
+                loadAppealChat();
+            });
+            socket.on('appeal_updated', () => {
+                loadAppealChat();
+            });
+            socket.on('appeal_resolved', () => {
+                setIsResolved(true);
+                loadAppealChat();
+            });
+
+            socketRef.current = socket;
+
+            // Poll every 2.5s while chat is open so admin replies are received in real time
+            const pollInterval = setInterval(() => {
+                loadAppealChat();
+            }, 2500);
+
+            const subscription = AppState.addEventListener('change', nextAppState => {
+                if (nextAppState === 'active') {
+                    loadAppealChat();
+                    if (socket && !socket.connected) {
+                        socket.connect();
+                    }
+                } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+                    if (socket && socket.connected) {
+                        socket.disconnect();
+                    }
+                }
+            });
+
+            return () => {
+                clearInterval(pollInterval);
+                subscription.remove();
+                if (socket) socket.disconnect();
+            };
+        }
 
         async function initialize() {
             const activeTicketId = await ensureTicket();
@@ -87,7 +192,7 @@ export default function SupportChatScreen() {
             setIsResolved(msgsData.status === 'resolved');
 
             socket = io(API_URL, {
-                auth: { token: accessToken },
+                auth: { token },
                 transports: ['websocket'],
             });
 
@@ -133,7 +238,7 @@ export default function SupportChatScreen() {
             subscription.remove();
             if (socket) socket.disconnect();
         };
-    }, [accessToken]);
+    }, [token, isAppeal, ticketId, loadAppealChat]);
 
     useEffect(() => {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -162,7 +267,7 @@ export default function SupportChatScreen() {
                 fileName = `upload.${ext}`;
             }
             
-            setPendingMedia({ uri: asset.uri, mediaType, fileName });
+            setPendingMedia({ uri: asset.uri, mediaType, fileName, base64: asset.base64 });
         }
     };
 
@@ -184,6 +289,7 @@ export default function SupportChatScreen() {
                                 mediaTypes: ['images', 'videos'],
                                 quality: 0.8,
                                 videoMaxDuration: 60,
+                                base64: true,
                             });
                             processMediaResult(result);
                         } catch (error) {
@@ -200,6 +306,7 @@ export default function SupportChatScreen() {
                                 mediaTypes: ['images', 'videos'],
                                 quality: 0.8,
                                 videoMaxDuration: 60,
+                                base64: true,
                             });
                             processMediaResult(result);
                         } catch (error) {
@@ -220,8 +327,13 @@ export default function SupportChatScreen() {
         const text = input.trim();
         if ((!text && !pendingMedia) || sending || uploading) return;
 
-        const activeTicketId = await ensureTicket();
-        if (!activeTicketId) return;
+        let activeTicketId: string | null = null;
+        if (isAppeal) {
+            activeTicketId = ticketId || 'appeal';
+        } else {
+            activeTicketId = await ensureTicket();
+            if (!activeTicketId) return;
+        }
 
         setSending(true);
         setInput('');
@@ -229,6 +341,7 @@ export default function SupportChatScreen() {
         let localMediaUrl = pendingMedia?.uri;
         let localMediaType = pendingMedia?.mediaType;
         let localFileName = pendingMedia?.fileName;
+        let localBase64 = pendingMedia?.base64;
         
         setPendingMedia(null);
 
@@ -248,7 +361,11 @@ export default function SupportChatScreen() {
             let finalMediaUrl: string | undefined = undefined;
             if (localMediaUrl && localMediaType) {
                 setUploading(true);
-                const sigRes = await api.post('/chat/cloudinary-signature', { mediaType: localMediaType });
+                const sigRes = await api.post(
+                    '/chat/cloudinary-signature',
+                    { mediaType: localMediaType },
+                    { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+                );
                 const signatureData = sigRes.data;
 
                 const formData = new FormData();
@@ -268,10 +385,41 @@ export default function SupportChatScreen() {
                     body: formData 
                 });
                 const uploadData = await uploadRes.json();
-                if (!uploadData.secure_url) {
-                     throw new Error('Upload failed');
+                if (uploadData.secure_url) {
+                    finalMediaUrl = uploadData.secure_url;
                 }
-                finalMediaUrl = uploadData.secure_url;
+            }
+
+            if (isAppeal) {
+                const res = await api.post('/appeals/my-appeal/messages', {
+                    body: text || undefined,
+                    mediaUrl: finalMediaUrl,
+                    mediaType: localMediaType,
+                    imageBase64: (!finalMediaUrl && localBase64) ? `data:image/jpeg;base64,${localBase64}` : undefined,
+                }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = res.data;
+                if (data?.message) {
+                    const serverMsg: Message = {
+                        _id: data.message._id || optimisticMsg._id,
+                        ticketId: data.message.ticketId || ticketId || 'appeal',
+                        senderId: data.message.senderId || '',
+                        senderRole: 'driver',
+                        body: data.message.body || text,
+                        createdAt: data.message.createdAt || new Date().toISOString(),
+                        mediaUrl: data.message.mediaUrl || finalMediaUrl || optimisticMsg.mediaUrl,
+                        mediaType: data.message.mediaType || localMediaType || optimisticMsg.mediaType,
+                    };
+                    setMsgs(prev => {
+                        if (prev.some(m => m._id === data.message._id)) {
+                            return prev.filter(m => m._id !== optimisticMsg._id);
+                        }
+                        return prev.map(m => m._id === optimisticMsg._id ? serverMsg : m);
+                    });
+                }
+                loadAppealChat();
+                return;
             }
 
             const res = await api.post(`/support/tickets/${activeTicketId}/messages`, { 
