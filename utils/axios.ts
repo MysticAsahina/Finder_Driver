@@ -76,7 +76,8 @@ api.interceptors.response.use(
             url.includes('/auth/resend-otp') || 
             url.includes('/auth/refresh') ||
             url.includes('/driver-register/verify-otp') ||
-            url.includes('/driver-register/resend-otp')
+            url.includes('/driver-register/resend-otp') ||
+            url.includes('/appeals')
         ) {
             return Promise.reject(error);
         }
