@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
@@ -10,73 +10,27 @@ import {
     Alert,
     Platform,
     Image,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { useFocusEffect } from '@react-navigation/native';
 import { ACCENT } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
+import api from '@/utils/axios';
 
 interface Transaction {
-    id: string;
-    type: 'cash_in' | 'cash_out';
-    title: string;
+    _id: string;
+    type: 'cash_in' | 'cash_out' | 'fare_deduction' | 'fare_earning' | 'refund';
+    description: string;
     amount: number;
-    date: string;
-    refNumber: string;
+    fee: number;
+    grossAmount: number;
+    referenceNumber: string;
+    createdAt: string;
 }
-
-const INITIAL_TRANSACTIONS: Transaction[] = [
-    {
-        id: '1',
-        type: 'cash_out',
-        title: 'Cash Out',
-        amount: 999999999.99,
-        date: 'October 12, 2026',
-        refNumber: 'Ref. 12345678910',
-    },
-    {
-        id: '2',
-        type: 'cash_in',
-        title: 'Cash In',
-        amount: 500000.00,
-        date: 'October 12, 2026',
-        refNumber: 'Ref. 12345678911',
-    },
-    {
-        id: '3',
-        type: 'cash_out',
-        title: 'Cash Out',
-        amount: 999999999.99,
-        date: 'October 12, 2026',
-        refNumber: 'Ref. 12345678912',
-    },
-    {
-        id: '4',
-        type: 'cash_in',
-        title: 'Cash In',
-        amount: 1500.00,
-        date: 'October 11, 2026',
-        refNumber: 'Ref. 12345678913',
-    },
-    {
-        id: '5',
-        type: 'cash_out',
-        title: 'Cash Out',
-        amount: 999999999.99,
-        date: 'October 10, 2026',
-        refNumber: 'Ref. 12345678914',
-    },
-    {
-        id: '6',
-        type: 'cash_out',
-        title: 'Cash Out',
-        amount: 999999999.99,
-        date: 'October 09, 2026',
-        refNumber: 'Ref. 12345678915',
-    },
-];
 
 type FilterType = 'all' | 'money_in' | 'money_out';
 
@@ -85,49 +39,95 @@ export default function WalletScreen() {
     const { user } = useContext(AuthContext);
 
     const displayName = user
-        ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Marcelino Zafra'
-        : 'Marcelino Zafra';
+        ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Driver'
+        : 'Driver';
 
-    const [balance, setBalance] = useState<number>(999999999.99);
+    const [balance, setBalance] = useState<number>(0);
     const [hideBalance, setHideBalance] = useState(false);
-    const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<FilterType>('all');
     const [filterModalVisible, setFilterModalVisible] = useState(false);
 
-    // Cash In modal state (Passenger can Cash In)
+    // Cash Out modal state
     const [cashOutModalVisible, setCashOutModalVisible] = useState(false);
     const [amountInput, setAmountInput] = useState('');
+    const [accountName, setAccountName] = useState('');
+    const [mobileNumber, setMobileNumber] = useState('');
+    const [submittingCashOut, setSubmittingCashOut] = useState(false);
 
-    const handleCashOut = () => {
+    const fetchWalletData = async () => {
+        try {
+            const [balRes, txRes] = await Promise.all([
+                api.get('/wallet/balance'),
+                api.get('/wallet/transactions'),
+            ]);
+            setBalance(balRes.data?.balance || 0);
+            setTransactions(txRes.data?.transactions || []);
+            if (balRes.data?.savedPayoutDetails) {
+                setAccountName(balRes.data.savedPayoutDetails.accountName || '');
+                setMobileNumber(balRes.data.savedPayoutDetails.mobileNumber || '');
+            } else if (user) {
+                setAccountName(`${user.firstName || ''} ${user.lastName || ''}`.trim());
+                setMobileNumber(user.mobileNumber || '');
+            }
+        } catch (err) {
+            console.error('Failed to fetch driver wallet data', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchWalletData();
+        }, [])
+    );
+
+    const handleCashOut = async () => {
         const num = parseFloat(amountInput);
-        if (isNaN(num) || num <= 0) {
-            Alert.alert('Invalid Amount', 'Please enter a valid amount.');
+        if (isNaN(num) || num < 100 || num > 2000) {
+            Alert.alert('Invalid Amount', 'Please enter an amount between ₱100.00 and ₱2,000.00.');
             return;
         }
         if (num > balance) {
             Alert.alert('Insufficient Balance', 'You do not have enough funds to cash out this amount.');
             return;
         }
+        if (!accountName.trim()) {
+            Alert.alert('Missing Field', 'Please enter your GCash account name.');
+            return;
+        }
+        if (!mobileNumber.trim() || !/^09\d{9}$/.test(mobileNumber.trim())) {
+            Alert.alert('Invalid Mobile Number', 'Please enter a valid 11-digit GCash number starting with 09.');
+            return;
+        }
 
-        const newTx: Transaction = {
-            id: Date.now().toString(),
-            type: 'cash_out',
-            title: 'Cash Out',
-            amount: num,
-            date: 'October 12, 2026',
-            refNumber: `Ref. ${Math.floor(10000000000 + Math.random() * 90000000000)}`,
-        };
+        setSubmittingCashOut(true);
+        try {
+            const res = await api.post('/wallet/wallet/cash-out/request', {
+                amount: num,
+                accountName: accountName.trim(),
+                mobileNumber: mobileNumber.trim(),
+            });
 
-        setBalance((prev) => prev - num);
-        setTransactions([newTx, ...transactions]);
-        setAmountInput('');
-        setCashOutModalVisible(false);
-        Alert.alert('Success', `Successfully cashed out PHP ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} from your earnings.`);
+            setBalance(res.data.newBalance);
+            setTransactions((prev) => [res.data.transaction, ...prev]);
+            setAmountInput('');
+            setCashOutModalVisible(false);
+
+            Alert.alert('Success', `Successfully cashed out ₱${num.toFixed(2)} to GCash (${mobileNumber.trim()}). Transfer fee: ₱0.00 (Covered by FINDER).`);
+        } catch (err: any) {
+            console.error('Failed to cash out', err);
+            Alert.alert('Cash Out Notice', err.response?.data?.message || 'Failed to process cash out.');
+        } finally {
+            setSubmittingCashOut(false);
+        }
     };
 
     const filteredTransactions = transactions.filter((tx) => {
-        if (filter === 'money_in') return tx.type === 'cash_in';
-        if (filter === 'money_out') return tx.type === 'cash_out';
+        if (filter === 'money_in') return tx.type === 'cash_in' || tx.type === 'fare_earning' || tx.type === 'refund';
+        if (filter === 'money_out') return tx.type === 'cash_out' || tx.type === 'fare_deduction';
         return true;
     });
 
@@ -270,7 +270,9 @@ export default function WalletScreen() {
                         contentContainerStyle={styles.txScrollContent}
                         showsVerticalScrollIndicator={true}
                     >
-                        {filteredTransactions.length === 0 ? (
+                        {loading ? (
+                            <ActivityIndicator style={{ marginTop: 40 }} color={ACCENT} />
+                        ) : filteredTransactions.length === 0 ? (
                             <View style={styles.emptyContainer}>
                                 <Ionicons name="receipt-outline" size={44} color="#FFB085" />
                                 <Text style={styles.emptyTitle}>No Transactions</Text>
@@ -278,28 +280,30 @@ export default function WalletScreen() {
                             </View>
                         ) : (
                             filteredTransactions.map((tx) => {
-                                const isCashOut = tx.type === 'cash_out';
+                                const isMoneyOut = tx.type === 'cash_out' || tx.type === 'fare_deduction';
+                                const formattedDate = new Date(tx.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                });
                                 return (
-                                    <View key={tx.id} style={styles.txCard}>
+                                    <View key={tx._id} style={styles.txCard}>
                                         <View style={styles.txLeft}>
-                                            {/* Cash In / Cash Out Icon */}
                                             <View
                                                 style={[
                                                     styles.txIconBadge,
-                                                    isCashOut ? styles.txIconCashOut : styles.txIconCashIn,
+                                                    isMoneyOut ? styles.txIconCashOut : styles.txIconCashIn,
                                                 ]}
                                             >
                                                 <Ionicons
-                                                    name={isCashOut ? 'arrow-up' : 'arrow-down'}
+                                                    name={isMoneyOut ? 'arrow-up' : 'arrow-down'}
                                                     size={16}
-                                                    color={isCashOut ? ACCENT : '#16A34A'}
+                                                    color={isMoneyOut ? ACCENT : '#16A34A'}
                                                 />
                                             </View>
 
                                             <View style={styles.txDetails}>
-                                                <Text style={styles.txTypeTitle}>{tx.title}</Text>
-                                                <Text style={styles.txDateText}>{tx.date}</Text>
-                                                <Text style={styles.txRefText}>{tx.refNumber}</Text>
+                                                <Text style={styles.txTypeTitle}>{tx.description}</Text>
+                                                <Text style={styles.txDateText}>{formattedDate}</Text>
+                                                <Text style={styles.txRefText}>Ref. {tx.referenceNumber}</Text>
                                             </View>
                                         </View>
 
@@ -308,10 +312,10 @@ export default function WalletScreen() {
                                             <Text
                                                 style={[
                                                     styles.txAmountText,
-                                                    isCashOut ? styles.txAmountCashOut : styles.txAmountCashIn,
+                                                    isMoneyOut ? styles.txAmountCashOut : styles.txAmountCashIn,
                                                 ]}
                                             >
-                                                {isCashOut ? '–PHP ' : '+PHP '}
+                                                {isMoneyOut ? '–PHP ' : '+PHP '}
                                                 <Text style={styles.txAmountNumber}>
                                                     {formatAmount(tx.amount)}
                                                 </Text>
@@ -422,6 +426,38 @@ export default function WalletScreen() {
                             </TouchableOpacity>
                         </View>
 
+                        {/* Payout Destination (GCash) */}
+                        <Text style={[styles.chipsLabel, { marginTop: 12 }]}>Disbursement Method</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#BBF7D0', marginBottom: 10 }}>
+                            <Ionicons name="phone-portrait-outline" size={20} color="#16A34A" style={{ marginRight: 8 }} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#16A34A' }}>GCash Express</Text>
+                                <Text style={{ fontSize: 11, color: '#666' }}>Zero transfer fees covered by FINDER</Text>
+                            </View>
+                            <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                        </View>
+
+                        <Text style={styles.chipsLabel}>GCash Account Name</Text>
+                        <TextInput
+                            style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14, marginBottom: 10, color: '#1a1a1a' }}
+                            placeholder="e.g. Juan Dela Cruz"
+                            placeholderTextColor="#aaa"
+                            value={accountName}
+                            onChangeText={setAccountName}
+                        />
+
+                        <Text style={styles.chipsLabel}>GCash Mobile Number</Text>
+                        <TextInput
+                            style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14, marginBottom: 12, color: '#1a1a1a' }}
+                            placeholder="09XXXXXXXXX"
+                            placeholderTextColor="#aaa"
+                            keyboardType="phone-pad"
+                            maxLength={11}
+                            value={mobileNumber}
+                            onChangeText={setMobileNumber}
+                        />
+
+                        <Text style={styles.chipsLabel}>Withdrawal Amount (Min ₱100 - Max ₱2,000)</Text>
                         <View style={styles.inputContainer}>
                             <Text style={styles.inputCurrencyPrefix}>PHP</Text>
                             <TextInput
@@ -431,7 +467,6 @@ export default function WalletScreen() {
                                 placeholderTextColor="#aaa"
                                 value={amountInput}
                                 onChangeText={setAmountInput}
-                                autoFocus
                             />
                         </View>
 
@@ -455,6 +490,27 @@ export default function WalletScreen() {
                             })}
                         </View>
 
+                        {/* Zero-fee driver payout banner */}
+                        <View style={{ backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, marginTop: 14, borderWidth: 1, borderColor: '#BBF7D0' }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <Text style={{ fontSize: 13, color: '#666' }}>Disbursement Amount:</Text>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1a1a1a' }}>₱{(parseFloat(amountInput) || 0).toFixed(2)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <Text style={{ fontSize: 13, color: '#666' }}>Transfer Fee:</Text>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#16A34A' }}>₱0.00 (Zero Fee)</Text>
+                            </View>
+                            <View style={{ height: 1, backgroundColor: '#BBF7D0', marginVertical: 4 }} />
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: '#1a1a1a' }}>Net Amount Received:</Text>
+                                <Text style={{ fontSize: 15, fontWeight: '800', color: '#16A34A' }}>₱{(parseFloat(amountInput) || 0).toFixed(2)}</Text>
+                            </View>
+                        </View>
+
+                        <Text style={{ fontSize: 11, color: '#888', marginTop: 10, textAlign: 'center', lineHeight: 15 }}>
+                            ℹ️ Cash-outs are limited to once per 24 hours to prevent disbursement congestion. Funds are transferred directly to your nominated GCash account.
+                        </Text>
+
                         <View style={styles.modalButtonsRow}>
                             <TouchableOpacity
                                 style={styles.cancelBtn}
@@ -462,17 +518,23 @@ export default function WalletScreen() {
                                     setAmountInput('');
                                     setCashOutModalVisible(false);
                                 }}
+                                disabled={submittingCashOut}
                                 activeOpacity={0.7}
                             >
                                 <Text style={styles.cancelBtnText}>Cancel</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                style={styles.confirmBtn}
+                                style={[styles.confirmBtn, submittingCashOut && { opacity: 0.7 }]}
                                 onPress={handleCashOut}
+                                disabled={submittingCashOut}
                                 activeOpacity={0.85}
                             >
-                                <Text style={styles.confirmBtnText}>Confirm Cash Out</Text>
+                                {submittingCashOut ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.confirmBtnText}>Confirm Cash Out</Text>
+                                )}
                             </TouchableOpacity>
                         </View>
                     </View>
