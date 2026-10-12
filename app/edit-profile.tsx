@@ -162,6 +162,8 @@ export default function EditProfileScreen() {
         }
     };
 
+    const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
+
     const handlePickPhoto = async (useCamera = false) => {
         try {
             if (useCamera) {
@@ -178,6 +180,14 @@ export default function EditProfileScreen() {
                 });
                 if (!result.canceled && result.assets && result.assets.length > 0) {
                     const asset = result.assets[0];
+                    if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) {
+                        Alert.alert('File Too Large', 'Please select an image smaller than 5MB.');
+                        return;
+                    }
+                    if (asset.base64 && (asset.base64.length * 3) / 4 > MAX_PHOTO_BYTES) {
+                        Alert.alert('File Too Large', 'Please select an image smaller than 5MB.');
+                        return;
+                    }
                     const photoUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
                     await updatePhoto(photoUri);
                 }
@@ -196,6 +206,14 @@ export default function EditProfileScreen() {
                 });
                 if (!result.canceled && result.assets && result.assets.length > 0) {
                     const asset = result.assets[0];
+                    if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) {
+                        Alert.alert('File Too Large', 'Please select an image smaller than 5MB.');
+                        return;
+                    }
+                    if (asset.base64 && (asset.base64.length * 3) / 4 > MAX_PHOTO_BYTES) {
+                        Alert.alert('File Too Large', 'Please select an image smaller than 5MB.');
+                        return;
+                    }
                     const photoUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
                     await updatePhoto(photoUri);
                 }
