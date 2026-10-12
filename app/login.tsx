@@ -1,5 +1,5 @@
 import { ACCENT } from '@/constants/theme';
-import { setPendingToken } from '@/store/authStore';
+import { setPendingToken, setAppealSession } from '@/store/authStore';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -101,7 +101,25 @@ export default function LoginScreen() {
             router.push({ pathname: '/otp', params: { flow: 'login' } });
 
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Unable to reach the server. Please check your connection.');
+            const errData = err.response?.data;
+            if (err.response?.status === 403 && errData?.status === 'suspended') {
+                const { suspension, appealToken } = errData;
+                if (appealToken && suspension) {
+                    setAppealSession(appealToken, suspension);
+                }
+                if (suspension?.hasPendingAppeal) {
+                    router.push('/appeal-pending' as any);
+                    return;
+                }
+                if (suspension?.canAppeal) {
+                    router.push('/account-suspended' as any);
+                    return;
+                }
+                // Quota exhausted or permanently disabled: display message directly
+                setError(errData.message || 'Your account is suspended.');
+                return;
+            }
+            setError(errData?.message || 'Unable to reach the server. Please check your connection.');
         } finally {
             setLoading(false);
         }
@@ -199,7 +217,7 @@ export default function LoginScreen() {
                             <TouchableOpacity
                                 style={styles.tempPreviewBtn}
                                 activeOpacity={0.7}
-                                onPress={() => router.push('/account-suspended')}
+                                onPress={() => router.push('/account-suspended' as any)}
                             >
                                 <Text style={styles.tempPreviewText}>
                                     ⚠️ [TEMP] Preview: Account Suspended
@@ -208,7 +226,7 @@ export default function LoginScreen() {
                             <TouchableOpacity
                                 style={[styles.tempPreviewBtn, { backgroundColor: '#F9F9F9', borderColor: '#ccc' }]}
                                 activeOpacity={0.7}
-                                onPress={() => router.push('/appeal-pending')}
+                                onPress={() => router.push('/appeal-pending' as any)}
                             >
                                 <Text style={[styles.tempPreviewText, { color: '#666' }]}>
                                     ⏳ [TEMP] Preview: Appeal Pending

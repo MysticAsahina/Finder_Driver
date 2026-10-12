@@ -10,6 +10,7 @@ import {
     Platform,
     Image,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,6 +18,8 @@ import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCENT } from '@/constants/theme';
+import { getAppealToken, getSuspensionData, setAppealSession } from '@/store/authStore';
+import api from '@/utils/axios';
 
 function WarningTriangleIcon({ size = 58 }: { size?: number }) {
     return (
@@ -33,8 +36,11 @@ function WarningTriangleIcon({ size = 58 }: { size?: number }) {
 
 export default function AccountSuspendedScreen() {
     const router = useRouter();
+    const suspensionData = getSuspensionData();
     const [reason, setReason] = useState('');
     const [photoUri, setPhotoUri] = useState<string | null>(null);
+    const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
 
     const handlePickPhoto = async () => {
         try {
@@ -47,20 +53,65 @@ export default function AccountSuspendedScreen() {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
-                quality: 0.8,
+                quality: 0.7,
+                base64: true,
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 setPhotoUri(result.assets[0].uri);
+                setPhotoBase64(result.assets[0].base64 || null);
             }
         } catch (err) {
             console.error('Error picking photo:', err);
         }
     };
 
-    const handleAppeal = () => {
-        // Frontend preview: direct transition to Appeal Pending screen
-        router.push('/appeal-pending');
+    const handleAppeal = async () => {
+        if (!reason || reason.trim().length < 10) {
+            Alert.alert('Required', 'Please provide a detailed appeal statement (at least 10 characters).');
+            return;
+        }
+
+        const appealToken = getAppealToken();
+        if (!appealToken) {
+            Alert.alert('Session Expired', 'Please return to login to refresh your session.');
+            router.replace('/login');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            await api.post(
+                '/appeals/submit',
+                {
+                    reason: reason.trim(),
+                    imageBase64: photoBase64 ? `data:image/jpeg;base64,${photoBase64}` : null,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${appealToken}`,
+                    },
+                }
+            );
+
+            // Update session so user cannot re-appeal while pending
+            setAppealSession(appealToken, {
+                ...suspensionData,
+                hasPendingAppeal: true,
+                canAppeal: false,
+            });
+
+            Alert.alert(
+                'Appeal Submitted',
+                'Your appeal has been received and is now pending administrator review.',
+                [{ text: 'OK', onPress: () => router.replace('/appeal-pending' as any) }]
+            );
+        } catch (err: any) {
+            console.error('Failed to submit appeal:', err);
+            Alert.alert('Error', err.response?.data?.message || 'Failed to submit appeal. Please try again.');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -93,19 +144,26 @@ export default function AccountSuspendedScreen() {
 
                     {/* Subtitle / Description */}
                     <Text style={styles.subtitle}>
-                        Your account has been suspended because of (REASON). You have (#) day/s to appeal before deletion.
+                        {suspensionData?.reason
+                            ? `Your account has been suspended because of: "${suspensionData.reason}". ${
+                                  suspensionData.endDate
+                                      ? `Suspension active until ${new Date(suspensionData.endDate).toLocaleDateString()}. `
+                                      : ''
+                              }You have ${suspensionData.appealsRemaining ?? 1} appeal(s) remaining.`
+                            : 'Your account has been suspended. You may submit an appeal for administrative review.'}
                     </Text>
 
                     {/* Appeal Reason Section */}
                     <Text style={styles.sectionLabel}>Appeal Reason</Text>
                     <TextInput
                         style={styles.textArea}
-                        placeholder=""
+                        placeholder="Explain the circumstances surrounding this suspension..."
                         placeholderTextColor="#aaa"
                         multiline
                         textAlignVertical="top"
                         value={reason}
                         onChangeText={setReason}
+                        editable={!submitting}
                     />
 
                     {/* Upload Photo Button / Preview */}
@@ -115,7 +173,11 @@ export default function AccountSuspendedScreen() {
                                 <Image source={{ uri: photoUri }} style={styles.previewImage} />
                                 <TouchableOpacity
                                     style={styles.removePhotoBtn}
-                                    onPress={() => setPhotoUri(null)}
+                                    onPress={() => {
+                                        setPhotoUri(null);
+                                        setPhotoBase64(null);
+                                    }}
+                                    disabled={submitting}
                                 >
                                     <Ionicons name="close-circle" size={22} color="#fff" />
                                 </TouchableOpacity>
@@ -125,6 +187,7 @@ export default function AccountSuspendedScreen() {
                                 style={styles.uploadBox}
                                 onPress={handlePickPhoto}
                                 activeOpacity={0.7}
+                                disabled={submitting}
                             >
                                 <Ionicons name="add" size={28} color="#333" />
                                 <Text style={styles.uploadText}>Upload Photo</Text>
@@ -137,11 +200,16 @@ export default function AccountSuspendedScreen() {
 
                     {/* APPEAL Button */}
                     <TouchableOpacity
-                        style={styles.appealBtn}
+                        style={[styles.appealBtn, submitting && { opacity: 0.6 }]}
                         onPress={handleAppeal}
                         activeOpacity={0.8}
+                        disabled={submitting}
                     >
-                        <Text style={styles.appealBtnText}>APPEAL</Text>
+                        {submitting ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.appealBtnText}>APPEAL</Text>
+                        )}
                     </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>

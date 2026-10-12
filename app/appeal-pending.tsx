@@ -8,17 +8,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ACCENT } from '@/constants/theme';
+import { clearAppealSession, clearAuth } from '@/store/authStore';
 
 export default function AppealPendingScreen() {
     const router = useRouter();
 
     const handleSupportPage = () => {
-        // Can route to Help Centre or Support Chat
+        // Routes to Help Centre
         router.push('/help-centre');
     };
 
     const handleLogout = () => {
-        // Navigate back to login
+        clearAppealSession();
+        clearAuth();
         router.replace('/login');
     };
 

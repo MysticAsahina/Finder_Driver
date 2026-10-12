@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '@/context/AuthContext';
+import { getAppealToken } from '@/store/authStore';
 import api from '@/utils/axios';
 
 const ACCENT = '#FF5F00';
@@ -33,6 +34,7 @@ export default function HelpCentreScreen() {
     const { accessToken } = useContext(AuthContext);
 
     const [tickets, setTickets] = useState<any[]>([]);
+    const [appeal, setAppeal] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     
     // Modal state
@@ -40,7 +42,24 @@ export default function HelpCentreScreen() {
     const [creating, setCreating] = useState(false);
 
     const fetchTickets = async () => {
-        if (!accessToken) return;
+        const appealToken = getAppealToken();
+        if (appealToken) {
+            try {
+                const appealRes = await api.get('/appeals/my-appeal', {
+                    headers: { Authorization: `Bearer ${appealToken}` }
+                });
+                if (appealRes.data.appeal) {
+                    setAppeal(appealRes.data.appeal);
+                }
+            } catch (e) {
+                // Ignore if not found
+            }
+        }
+
+        if (!accessToken) {
+            setLoading(false);
+            return;
+        }
         try {
             const res = await api.get('/support/tickets');
             const data = res.data;
@@ -128,6 +147,41 @@ export default function HelpCentreScreen() {
                         <Text style={styles.supportTap}>Tap to start a new chat →</Text>
                     </View>
                 </TouchableOpacity>
+
+                {/* Active Appeal Banner / Section */}
+                {appeal && (
+                    <View style={styles.appealSection}>
+                        <View style={styles.appealHeaderRow}>
+                            <Text style={styles.appealSectionTitle}>Suspension Appeal</Text>
+                            <View style={[styles.appealStatusPill, appeal.status === 'pending' ? styles.statusPillPending : styles.statusPillResolved]}>
+                                <Text style={styles.appealStatusText}>
+                                    {appeal.status === 'pending' ? 'Pending Review' : (appeal.status === 'lifted' ? 'Approved' : 'Rejected')}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.appealCard}>
+                            <View style={styles.appealCardTop}>
+                                <View style={{ flex: 1, marginRight: 8 }}>
+                                    <Text style={styles.appealTicketCode}>{appeal.ticketNumber}</Text>
+                                    <Text style={styles.appealSubjectText} numberOfLines={2}>{appeal.reason}</Text>
+                                </View>
+                                <Ionicons name="shield-checkmark" size={26} color={ACCENT} />
+                            </View>
+
+                            <View style={styles.appealDivider} />
+
+                            <View style={styles.appealFooterRow}>
+                                <Text style={styles.appealDateText}>
+                                    Submitted: {new Date(appeal.createdAt).toLocaleDateString()}
+                                </Text>
+                                <Text style={styles.appealAttemptText}>
+                                    Attempt #{appeal.attemptNumber || 1}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
 
                 {/* Support Logs History */}
                 <Text style={styles.historyTitle}>Support Tickets</Text>
@@ -454,5 +508,86 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 20,
-    }
+    },
+    appealSection: {
+        marginTop: 20,
+        marginBottom: 8,
+    },
+    appealHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    appealSectionTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1a1a1a',
+    },
+    appealStatusPill: {
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 12,
+    },
+    statusPillPending: {
+        backgroundColor: '#FFF3EC',
+        borderWidth: 1,
+        borderColor: '#FFD0B0',
+    },
+    statusPillResolved: {
+        backgroundColor: '#ECFDF5',
+        borderWidth: 1,
+        borderColor: '#A7F3D0',
+    },
+    appealStatusText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: ACCENT,
+    },
+    appealCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#FFD0B0',
+        padding: 16,
+        shadowColor: '#FF5F00',
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    appealCardTop: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+    },
+    appealTicketCode: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: ACCENT,
+        marginBottom: 4,
+    },
+    appealSubjectText: {
+        fontSize: 13.5,
+        color: '#333',
+        lineHeight: 18,
+    },
+    appealDivider: {
+        height: 1,
+        backgroundColor: '#f2f2f2',
+        marginVertical: 12,
+    },
+    appealFooterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    appealDateText: {
+        fontSize: 12,
+        color: '#888',
+    },
+    appealAttemptText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: ACCENT,
+    },
 });

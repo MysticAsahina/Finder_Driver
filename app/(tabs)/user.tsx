@@ -104,7 +104,7 @@ export default function UserScreen() {
                             activeOpacity={0.7}
                             onPress={async () => {
                                 if (item.label === 'Wallet') {
-                                    router.push('/wallet');
+                                    router.push('/wallet' as any);
                                 } else if (item.label === 'Terms and Privacy Policy') {
                                     router.push('/terms');
                                 } else if (item.label === 'About FINDER') {
