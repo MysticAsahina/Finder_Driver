@@ -660,6 +660,8 @@ export default function HomeScreen() {
               Alert.alert('Too Far', err.response.data.message);
               return 'too_far';
           }
+          const serverMsg = err.response?.data?.message || err.message || 'Failed to update status.';
+          Alert.alert('Status Update Error', serverMsg);
           return false;
       }
   };
