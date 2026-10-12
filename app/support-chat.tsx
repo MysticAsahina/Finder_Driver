@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
+import { getAppealToken } from '@/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useContext, useEffect, useRef, useState } from 'react';
