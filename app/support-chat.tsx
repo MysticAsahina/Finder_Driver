@@ -1,21 +1,27 @@
 import { Colors } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
 import { getAppealToken } from '@/store/authStore';
+import api from '@/utils/axios';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import React, { useContext, useEffect, useRef, useState, useCallback } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-    FlatList, KeyboardAvoidingView, Platform,
+    ActivityIndicator,
+    Alert,
+    AppState,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
     StyleSheet,
     Text, TextInput, TouchableOpacity,
-    View, AppState, Alert, Image, Modal, ActivityIndicator
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
-import api from '@/utils/axios';
-import { getAppealToken } from '@/store/authStore';
-import * as ImagePicker from 'expo-image-picker';
-import { useVideoPlayer, VideoView } from 'expo-video';
 
 const ACCENT = Colors.light.tint;
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
