@@ -211,29 +211,6 @@ export default function LoginScreen() {
                                 {loading ? 'SIGNING IN...' : 'LOGIN'}
                             </Text>
                         </TouchableOpacity>
-
-                        {/* ─── TEMPORARY PREVIEW BUTTONS (Easily delete this block when done) ─── */}
-                        <View style={{ gap: 6, marginTop: 4 }}>
-                            <TouchableOpacity
-                                style={styles.tempPreviewBtn}
-                                activeOpacity={0.7}
-                                onPress={() => router.push('/account-suspended' as any)}
-                            >
-                                <Text style={styles.tempPreviewText}>
-                                    ⚠️ [TEMP] Preview: Account Suspended
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.tempPreviewBtn, { backgroundColor: '#F9F9F9', borderColor: '#ccc' }]}
-                                activeOpacity={0.7}
-                                onPress={() => router.push('/appeal-pending' as any)}
-                            >
-                                <Text style={[styles.tempPreviewText, { color: '#666' }]}>
-                                    ⏳ [TEMP] Preview: Appeal Pending
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                        {/* ─── END TEMPORARY PREVIEW ─── */}
                     </View>
                 </Animated.View>
 
@@ -274,20 +251,4 @@ const styles = StyleSheet.create({
     footer:          { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingBottom: 28 },
     footerText:      { fontSize: 13, color: '#666' },
     footerLink:      { fontSize: 13, fontWeight: '700', color: ACCENT, textDecorationLine: 'underline' },
-
-    // ─── TEMPORARY PREVIEW STYLES ───
-    tempPreviewBtn: {
-        borderWidth: 1.2,
-        borderColor: ACCENT,
-        borderStyle: 'dashed',
-        borderRadius: 10,
-        paddingVertical: 11,
-        alignItems: 'center',
-        backgroundColor: '#FFF5EE',
-    },
-    tempPreviewText: {
-        color: ACCENT,
-        fontSize: 13,
-        fontWeight: '700',
-    },
 });
