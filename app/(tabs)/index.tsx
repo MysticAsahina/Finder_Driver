@@ -229,6 +229,7 @@ export default function HomeScreen() {
                           dropoff: ride.dropoff,
                           fare: ride.fare,
                           distanceKm: ride.distanceKm,
+                          paymentMethod: ride.paymentMethod,
                       });
                       setTimeLeft(remaining);
                   } else {
@@ -849,6 +850,12 @@ export default function HomeScreen() {
                         <Text style={styles.infoValue}>₱  {fare}</Text>
                     </View>
                     <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Payment Method</Text>
+                        <Text style={[styles.infoValue, { color: currentRide?.paymentMethod === 'wallet' ? '#2563eb' : '#ea580c', fontWeight: '700' }]}>
+                            {currentRide?.paymentMethod === 'wallet' ? 'Credited to Wallet (Prepaid)' : 'Cash Collected'}
+                        </Text>
+                    </View>
+                    <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Distance</Text>
                         <Text style={styles.infoValue}>{routeDistance.toFixed(1)} Km</Text>
                     </View>
@@ -1082,9 +1089,16 @@ export default function HomeScreen() {
                             {rideState === 'pickup' || rideState === 'arrived' ? pickupFull : dropoffFull}
                         </Text>
                     </View>
-                    <View style={styles.fareRow}>
-                        <Text style={styles.fareLabel}>Total Fare</Text>
-                        <Text style={styles.fareValue}>₱ {fare}</Text>
+                    <View style={[styles.fareRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                        <View>
+                            <Text style={styles.fareLabel}>Total Fare</Text>
+                            <Text style={styles.fareValue}>₱ {fare}</Text>
+                        </View>
+                        <View style={{ backgroundColor: currentRide?.paymentMethod === 'wallet' ? '#eff6ff' : '#fff7ed', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: currentRide?.paymentMethod === 'wallet' ? '#bfdbfe' : '#fed7aa' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: currentRide?.paymentMethod === 'wallet' ? '#2563eb' : '#ea580c' }}>
+                                {currentRide?.paymentMethod === 'wallet' ? '💳 WALLET (NO CASH)' : '💵 CASH PAYMENT'}
+                            </Text>
+                        </View>
                     </View>
                 </Animated.View>
 

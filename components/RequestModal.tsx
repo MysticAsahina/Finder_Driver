@@ -81,6 +81,12 @@ export default function RequestModal({ ride, onAccept, onDecline, timeLeft }: Re
             <Text style={styles.statValue}>{ride.distanceKm} km</Text>
           </View>
           <View style={styles.statItem}>
+            <Text style={styles.statLabel}>Payment</Text>
+            <Text style={[styles.statValue, { fontSize: 16, color: ride.paymentMethod === 'wallet' ? '#2563eb' : ACCENT }]}>
+              {ride.paymentMethod === 'wallet' ? '💳 WALLET' : '💵 CASH'}
+            </Text>
+          </View>
+          <View style={styles.statItem}>
             <Text style={styles.statLabel}>Est. Fare</Text>
             <Text style={styles.statValue}>₱{Number(ride.fare ?? 0).toFixed(2)}</Text>
           </View>
