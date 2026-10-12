@@ -58,6 +58,11 @@ const FAQ_ITEMS = [
         answer:
             'Use the Forgot Password option on the login screen or reset your MPIN through account settings.',
     },
+    {
+        question: 'How do I report a trip issue?',
+        answer:
+            'Go to the Activity tab, open the completed or canceled trip, and tap "Report Issue". Rides can be reported within 7 days of completion and will automatically create a support ticket with the trip details included.',
+    },
 ];
 
 export default function FaqsScreen() {
