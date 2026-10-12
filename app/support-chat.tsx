@@ -43,6 +43,7 @@ export default function SupportChatScreen() {
     const insets = useSafeAreaInsets();
     const { accessToken } = useContext(AuthContext);
     const [msgs, setMsgs] = useState<Message[]>([]);
+    const [ticket, setTicket] = useState<any>(null);
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
     const [ticketId, setTicketId] = useState<string | null>((params.ticketId as string) || null);
@@ -196,6 +197,9 @@ export default function SupportChatScreen() {
             const msgsData = msgsRes.data;
             setMsgs(msgsData.messages || []);
             setIsResolved(msgsData.status === 'resolved');
+            if (msgsData.ticket) {
+                setTicket(msgsData.ticket);
+            }
 
             socket = io(API_URL, {
                 auth: { token },
@@ -501,17 +505,40 @@ export default function SupportChatScreen() {
                     contentContainerStyle={[styles.chatContent, { paddingBottom: insets.bottom + 8 }]}
                     onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
                     ListHeaderComponent={
-                        <View style={styles.agentCard}>
-                            <View style={styles.agentIcon}>
-                                <Ionicons name="headset" size={26} color={ACCENT} />
-                            </View>
-                            <View>
-                                <Text style={styles.agentName}>Finder Customer Support</Text>
-                                <View style={styles.statusRow}>
-                                    <View style={styles.onlineDot} />
-                                    <Text style={styles.statusText}>Online now</Text>
+                        <View style={{ marginBottom: 16 }}>
+                            <View style={styles.agentCard}>
+                                <View style={styles.agentIcon}>
+                                    <Ionicons name="headset" size={26} color={ACCENT} />
+                                </View>
+                                <View>
+                                    <Text style={styles.agentName}>Finder Customer Support</Text>
+                                    <View style={styles.statusRow}>
+                                        <View style={styles.onlineDot} />
+                                        <Text style={styles.statusText}>Online now</Text>
+                                    </View>
                                 </View>
                             </View>
+                            {ticket?.rideId && typeof ticket.rideId === 'object' && (
+                                <View style={styles.tripBanner}>
+                                    <View style={styles.tripBannerHeader}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                            <View style={styles.tripBadge}>
+                                                <Text style={styles.tripBadgeTxt}>TRIP #{((ticket.rideId._id || ticket.rideId).toString()).slice(-6).toUpperCase()}</Text>
+                                            </View>
+                                            <Text style={styles.tripStatusTxt}>{(ticket.rideId.status || 'Trip').toUpperCase()}</Text>
+                                        </View>
+                                        <Text style={styles.tripFareTxt}>₱{Number(ticket.rideId.fare || 0).toFixed(2)}</Text>
+                                    </View>
+                                    <View style={styles.tripRouteWrap}>
+                                        <View style={styles.tripDot} />
+                                        <Text style={styles.tripRouteTxt} numberOfLines={1}>{ticket.rideId.pickup?.address || 'Pickup'}</Text>
+                                    </View>
+                                    <View style={[styles.tripRouteWrap, { marginTop: 4 }]}>
+                                        <View style={[styles.tripDot, { backgroundColor: ACCENT }]} />
+                                        <Text style={styles.tripRouteTxt} numberOfLines={1}>{ticket.rideId.dropoff?.address || 'Dropoff'}</Text>
+                                    </View>
+                                </View>
+                            )}
                         </View>
                     }
                     ListFooterComponent={<View style={{ paddingBottom: 10 }} />}
@@ -536,44 +563,73 @@ export default function SupportChatScreen() {
                                         </Text>
                                     </View>
                                 )}
-                                <TouchableOpacity style={styles.removeMediaBtn} onPress={() => setPendingMedia(null)}>
-                                    <Ionicons name="close" size={16} color="#fff" />
+                                <TouchableOpacity 
+                                    style={styles.removeMediaBtn} 
+                                    onPress={() => setPendingMedia(null)}
+                                >
+                                    <Ionicons name="close-circle" size={22} color="#fff" />
                                 </TouchableOpacity>
                             </View>
                         )}
                         <View style={styles.inputBar}>
-                            <TouchableOpacity style={styles.plusBtn} onPress={handlePickMedia} activeOpacity={0.7} disabled={uploading}>
+                            <TouchableOpacity 
+                                style={styles.plusBtn} 
+                                activeOpacity={0.7} 
+                                onPress={handlePickMedia} 
+                                disabled={sending || uploading}
+                            >
                                 <Ionicons name="add" size={24} color={ACCENT} />
                             </TouchableOpacity>
                             <TextInput
                                 style={styles.textInput}
+                                placeholder="Describe your issues..."
+                                placeholderTextColor="#999"
                                 value={input}
                                 onChangeText={setInput}
-                                placeholder="Describe your issues..."
-                                placeholderTextColor="#bbb"
-                                onSubmitEditing={send}
-                                returnKeyType="send"
-                                editable={!uploading}
+                                multiline
+                                maxLength={500}
+                                editable={!sending && !uploading}
                             />
-                            <TouchableOpacity style={styles.sendBtn} onPress={send} activeOpacity={0.7} disabled={uploading}>
-                                {uploading ? <ActivityIndicator size="small" color={ACCENT} /> : <Ionicons name="send" size={20} color={ACCENT} />}
+                            <TouchableOpacity 
+                                style={styles.sendBtn} 
+                                onPress={send} 
+                                activeOpacity={0.7} 
+                                disabled={sending || uploading || (!input.trim() && !pendingMedia)}
+                            >
+                                {sending || uploading ? (
+                                    <ActivityIndicator size="small" color={ACCENT} />
+                                ) : (
+                                    <Ionicons 
+                                        name="send" 
+                                        size={20} 
+                                        color={(!input.trim() && !pendingMedia) ? "#ccc" : ACCENT} 
+                                    />
+                                )}
                             </TouchableOpacity>
                         </View>
                     </View>
                 )}
             </KeyboardAvoidingView>
 
-            {/* Full-screen Image Preview Modal */}
-            <Modal visible={!!previewImage} transparent animationType='fade'>
+            {/* Fullscreen image preview modal */}
+            <Modal
+                visible={previewImage !== null}
+                transparent={true}
+                onRequestClose={() => setPreviewImage(null)}
+            >
                 <View style={styles.modalBackground}>
                     <TouchableOpacity 
                         style={styles.closePreviewBtn} 
                         onPress={() => setPreviewImage(null)}
                     >
-                        <Ionicons name='close' size={30} color='#fff' />
+                        <Ionicons name="close" size={28} color="#fff" />
                     </TouchableOpacity>
                     {previewImage && (
-                        <Image source={{ uri: previewImage }} style={styles.fullScreenImage} resizeMode='contain' />
+                        <Image 
+                            source={{ uri: previewImage }} 
+                            style={styles.fullScreenImage} 
+                            resizeMode="contain" 
+                        />
                     )}
                 </View>
             </Modal>
@@ -635,7 +691,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         paddingHorizontal: 14,
         paddingVertical: 14,
-        marginBottom: 16,
+        marginBottom: 12,
         gap: 12,
         backgroundColor: '#fff8f2',
     },
@@ -668,6 +724,56 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#4caf50',
         fontWeight: '500',
+    },
+    tripBanner: {
+        padding: 12,
+        backgroundColor: '#FFF8F4',
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#FFD0B0',
+    },
+    tripBannerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    tripBadge: {
+        backgroundColor: ACCENT,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 6,
+    },
+    tripBadgeTxt: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    tripStatusTxt: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#666',
+    },
+    tripFareTxt: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: ACCENT,
+    },
+    tripRouteWrap: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    tripDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#22c55e',
+    },
+    tripRouteTxt: {
+        fontSize: 12,
+        color: '#444',
+        flex: 1,
     },
     messageBubbleWrap: {
         alignItems: 'flex-start',
