@@ -64,6 +64,9 @@ export default function RootLayout() {
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="register" options={{ headerShown: false }} />
               <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="account-suspended" options={{ headerShown: false }} />
+              <Stack.Screen name="appeal-pending" options={{ headerShown: false }} />
+              <Stack.Screen name="wallet" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="terms"

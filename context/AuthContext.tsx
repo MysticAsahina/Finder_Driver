@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import { createContext, ReactNode, useEffect, useState } from "react";
 import api, { setAxiosAccessToken } from "../utils/axios";
+import { getStoredProfilePhoto } from '../utils/photoStorage';
 
 // LOCAL
 
@@ -129,7 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setAccessToken(data.accessToken);
       setAxiosAccessToken(data.accessToken);
-      setUser(data.user);
+      const savedPhoto = await getStoredProfilePhoto();
+      setUser(savedPhoto ? { ...data.user, profilePicture: data.user?.profilePicture || savedPhoto } : data.user);
       if (data.user?.emergencyContact) {
         setEmergencyContactState(data.user.emergencyContact);
       }

@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useContext, useState, useMemo } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import * as SecureStore from 'expo-secure-store';
 import {
     ActivityIndicator,
     Alert,
@@ -12,11 +14,13 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import { AuthContext } from '@/context/AuthContext';
 import api from '@/utils/axios';
+import { saveStoredProfilePhoto, getStoredProfilePhoto, removeStoredProfilePhoto, compressImageIfWeb } from '@/utils/photoStorage';
 
 const ACCENT = '#FF5F00';
 
@@ -124,6 +128,100 @@ export default function EditProfileScreen() {
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [pendingOtpData, setPendingOtpData] = useState<{ destination: string, message: string } | null>(null);
+    const [profilePhoto, setProfilePhoto] = useState<string | null>(user?.profilePicture || null);
+
+    React.useEffect(() => {
+        getStoredProfilePhoto().then((photo) => {
+            if (photo) {
+                setProfilePhoto(photo);
+                setUser((prev: any) => ({ ...prev, profilePicture: photo }));
+            }
+        });
+    }, []);
+
+    const updatePhoto = async (uriOrBase64: string) => {
+        try {
+            const compressed = await compressImageIfWeb(uriOrBase64);
+            setProfilePhoto(compressed);
+            setUser((prev: any) => ({ ...prev, profilePicture: compressed }));
+            await saveStoredProfilePhoto(compressed);
+            Alert.alert('Success', 'Profile photo updated successfully!');
+        } catch (e) {
+            setProfilePhoto(uriOrBase64);
+            setUser((prev: any) => ({ ...prev, profilePicture: uriOrBase64 }));
+            await saveStoredProfilePhoto(uriOrBase64);
+            Alert.alert('Success', 'Profile photo updated successfully!');
+        }
+    };
+
+    const handlePickPhoto = async (useCamera = false) => {
+        try {
+            if (useCamera) {
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permission Required', 'Camera permission is needed to take a photo.');
+                    return;
+                }
+                const result = await ImagePicker.launchCameraAsync({
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.7,
+                    base64: true,
+                });
+                if (!result.canceled && result.assets && result.assets.length > 0) {
+                    const asset = result.assets[0];
+                    const photoUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                    await updatePhoto(photoUri);
+                }
+            } else {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permission Required', 'Gallery permission is needed to select a photo.');
+                    return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.7,
+                    base64: true,
+                });
+                if (!result.canceled && result.assets && result.assets.length > 0) {
+                    const asset = result.assets[0];
+                    const photoUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                    await updatePhoto(photoUri);
+                }
+            }
+        } catch (err) {
+            console.error('Error selecting photo:', err);
+            Alert.alert('Error', 'Failed to pick photo.');
+        }
+    };
+
+    const handlePhotoOptions = () => {
+        Alert.alert(
+            'Profile Picture',
+            'Select an option to update your photo:',
+            [
+                { text: 'Take Photo', onPress: () => handlePickPhoto(true) },
+                { text: 'Choose from Gallery', onPress: () => handlePickPhoto(false) },
+                ...(profilePhoto ? [{
+                    text: 'Remove Photo',
+                    style: 'destructive' as const,
+                    onPress: async () => {
+                        setProfilePhoto(null);
+                        setUser((prev: any) => {
+                            const updated = { ...prev };
+                            delete updated.profilePicture;
+                            return updated;
+                        });
+                        await removeStoredProfilePhoto();
+                    }
+                }] : []),
+                { text: 'Cancel', style: 'cancel' as const },
+            ]
+        );
+    };
     const [otpCode, setOtpCode] = useState('');
 
     const toggleEditing = (key: string) => {
@@ -194,7 +292,7 @@ export default function EditProfileScreen() {
                 return;
             }
 
-            if (data.user) setUser(data.user);
+            if (data.user) setUser({ ...data.user, profilePicture: profilePhoto || data.user.profilePicture });
             Alert.alert("Success", "Profile updated successfully.");
             
             // Reset edit state
@@ -214,7 +312,7 @@ export default function EditProfileScreen() {
         setError(null);
         try {
             const res = await api.post('/driver/edit-profile/verify-update', { code: otpCode });
-            if (res.data.user) setUser(res.data.user);
+            if (res.data.user) setUser({ ...res.data.user, profilePicture: profilePhoto || res.data.user.profilePicture });
             setPendingOtpData(null);
             setEditingFields({});
             setFormValues(prev => ({ ...prev, password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
@@ -284,9 +382,19 @@ export default function EditProfileScreen() {
                         <View style={{ width: 24 }} />
                     </View>
                     <View style={s.avatarWrap}>
-                        <View style={s.avatar}>
-                            <Text style={s.avatarText}>{initials}</Text>
-                        </View>
+                        <TouchableOpacity style={s.avatarTouchable} onPress={handlePhotoOptions} activeOpacity={0.8}>
+                            <View style={s.avatar}>
+                                {profilePhoto ? (
+                                    <Image source={{ uri: profilePhoto }} style={s.avatarImg} />
+                                ) : (
+                                    <Text style={s.avatarText}>{initials}</Text>
+                                )}
+                            </View>
+                            <View style={s.cameraBadge}>
+                                <Ionicons name="camera" size={15} color="#FFFFFF" />
+                            </View>
+                        </TouchableOpacity>
+                        <Text style={s.changePhotoText}>Tap to change photo</Text>
                     </View>
                 </View>
 
@@ -447,8 +555,12 @@ const s = StyleSheet.create({
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
     headerTitle: { fontSize: 18, fontWeight: '700', color: ACCENT },
     avatarWrap: { alignItems: 'center', marginTop: 8 },
-    avatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 2.5, borderColor: ACCENT, backgroundColor: '#FFD0B0', alignItems: 'center', justifyContent: 'center' },
+    avatarTouchable: { position: 'relative' },
+    avatar: { width: 78, height: 78, borderRadius: 39, borderWidth: 2.5, borderColor: ACCENT, backgroundColor: '#FFD0B0', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    avatarImg: { width: '100%', height: '100%', borderRadius: 39 },
     avatarText: { fontSize: 24, fontWeight: '700', color: ACCENT },
+    cameraBadge: { position: 'absolute', bottom: -2, right: -2, backgroundColor: ACCENT, width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 },
+    changePhotoText: { marginTop: 8, fontSize: 12, fontWeight: '700', color: ACCENT },
 
     card: { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20 },
     cardContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 40 },

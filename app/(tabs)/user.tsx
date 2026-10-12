@@ -1,16 +1,18 @@
 import { AuthContext } from '@/context/AuthContext';
 import api from '@/utils/axios';
+import { getStoredProfilePhoto } from '@/utils/photoStorage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useContext } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ACCENT = '#FF5F00';
 
 const OPTIONS = [
+    { icon: 'wallet-outline' as const, label: 'Wallet' },
     { icon: 'headset-outline' as const, label: 'Help Centre' },
     { icon: 'settings-outline' as const, label: 'Edit Profile' },
     { icon: 'calculator-outline' as const, label: 'Fare Metrics' },
@@ -23,6 +25,16 @@ const OPTIONS = [
 export default function UserScreen() {
     const router = useRouter();
     const { setAccessToken, setUser, user } = useContext(AuthContext);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            getStoredProfilePhoto().then((photo) => {
+                if (photo) {
+                    setUser((prev: any) => prev ? { ...prev, profilePicture: prev.profilePicture || photo } : prev);
+                }
+            });
+        }, [setUser])
+    );
 
     const displayName = user
         ? `${user.firstName} ${user.lastName}`
@@ -69,7 +81,11 @@ export default function UserScreen() {
                 {/* Profile Card */}
                 <TouchableOpacity style={styles.profileCard} activeOpacity={0.8} onPress={() => router.push('/edit-profile')}>
                     <View style={styles.avatarCircle}>
-                        <Ionicons name="person" size={28} color="#999" />
+                        {user?.profilePicture ? (
+                            <Image source={{ uri: user.profilePicture }} style={styles.avatarImage} />
+                        ) : (
+                            <Ionicons name="person" size={28} color="#999" />
+                        )}
                     </View>
                     <Text style={styles.profileName}>{displayName}</Text>
                 </TouchableOpacity>
@@ -87,7 +103,9 @@ export default function UserScreen() {
                             ]}
                             activeOpacity={0.7}
                             onPress={async () => {
-                                if (item.label === 'Terms and Privacy Policy') {
+                                if (item.label === 'Wallet') {
+                                    router.push('/wallet');
+                                } else if (item.label === 'Terms and Privacy Policy') {
                                     router.push('/terms');
                                 } else if (item.label === 'About FINDER') {
                                     router.push('/about');
@@ -173,6 +191,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
+        overflow: 'hidden',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 22,
     },
     profileName: {
         flex: 1,
