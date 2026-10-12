@@ -130,8 +130,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setAccessToken(data.accessToken);
       setAxiosAccessToken(data.accessToken);
+      const serverPhoto = data.user?.profilePicture;
       const savedPhoto = await getStoredProfilePhoto();
-      setUser(savedPhoto ? { ...data.user, profilePicture: data.user?.profilePicture || savedPhoto } : data.user);
+      const resolvedPhoto = serverPhoto !== undefined ? serverPhoto : savedPhoto;
+      if (serverPhoto) {
+        saveStoredProfilePhoto(serverPhoto).catch(() => {});
+      } else if (serverPhoto === null) {
+        removeStoredProfilePhoto().catch(() => {});
+      }
+      setUser({ ...data.user, profilePicture: resolvedPhoto });
       if (data.user?.emergencyContact) {
         setEmergencyContactState(data.user.emergencyContact);
       }

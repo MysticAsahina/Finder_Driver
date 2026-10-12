@@ -1,6 +1,6 @@
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView, AppState, Vibration } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated as RNAnimated, Alert, Linking, Platform, ScrollView, AppState, Vibration, Image } from 'react-native';
 import MapView, { Marker, Polygon, MapViewDirections } from '@/components/MapWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
@@ -1065,9 +1065,21 @@ export default function HomeScreen() {
                     </Animated.View>
                 </GestureDetector>
 
-                <View style={styles.row}>
-                    <Text style={styles.label}>Passenger</Text>
-                    <Text style={styles.value}>{passengerName}</Text>
+                <View style={[styles.row, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+                    {currentRide?.passengerId?.profilePicture ? (
+                      <Image
+                        source={{ uri: currentRide.passengerId.profilePicture }}
+                        style={{ width: 34, height: 34, borderRadius: 17 }}
+                      />
+                    ) : (
+                      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="person" size={18} color="#888" />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>Passenger</Text>
+                      <Text style={styles.value}>{passengerName}</Text>
+                    </View>
                 </View>
 
                 <Text style={styles.sheetTitle}>
@@ -1112,7 +1124,7 @@ export default function HomeScreen() {
                             <TouchableOpacity
                                 style={styles.actionBtn}
                                 onPress={() =>
-                                    router.push({ pathname: '/passenger-chat', params: { name: passengerName, rideId: currentRide?._id } })
+                                    router.push({ pathname: '/passenger-chat', params: { name: passengerName, rideId: currentRide?._id, photo: currentRide?.passengerId?.profilePicture || '' } })
                                 }
                                 activeOpacity={0.7}
                             >

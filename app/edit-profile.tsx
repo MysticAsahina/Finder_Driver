@@ -129,28 +129,36 @@ export default function EditProfileScreen() {
     const [saving, setSaving] = useState(false);
     const [pendingOtpData, setPendingOtpData] = useState<{ destination: string, message: string } | null>(null);
     const [profilePhoto, setProfilePhoto] = useState<string | null>(user?.profilePicture || null);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     React.useEffect(() => {
-        getStoredProfilePhoto().then((photo) => {
-            if (photo) {
-                setProfilePhoto(photo);
-                setUser((prev: any) => ({ ...prev, profilePicture: photo }));
-            }
-        });
-    }, []);
+        if (user?.profilePicture) {
+            setProfilePhoto(user.profilePicture);
+        } else {
+            getStoredProfilePhoto().then((photo) => {
+                if (photo) {
+                    setProfilePhoto(photo);
+                    setUser((prev: any) => ({ ...prev, profilePicture: photo }));
+                }
+            });
+        }
+    }, [user?.profilePicture]);
 
     const updatePhoto = async (uriOrBase64: string) => {
+        setUploadingPhoto(true);
         try {
             const compressed = await compressImageIfWeb(uriOrBase64);
-            setProfilePhoto(compressed);
-            setUser((prev: any) => ({ ...prev, profilePicture: compressed }));
-            await saveStoredProfilePhoto(compressed);
+            const res = await api.patch('/auth/profile-picture', { profilePicture: compressed });
+            const serverPhoto = res.data.profilePicture || res.data.user?.profilePicture || compressed;
+            setProfilePhoto(serverPhoto);
+            setUser((prev: any) => ({ ...prev, profilePicture: serverPhoto }));
+            await saveStoredProfilePhoto(serverPhoto);
             Alert.alert('Success', 'Profile photo updated successfully!');
-        } catch (e) {
-            setProfilePhoto(uriOrBase64);
-            setUser((prev: any) => ({ ...prev, profilePicture: uriOrBase64 }));
-            await saveStoredProfilePhoto(uriOrBase64);
-            Alert.alert('Success', 'Profile photo updated successfully!');
+        } catch (err: any) {
+            console.error('Error updating driver profile photo:', err);
+            Alert.alert('Upload Failed', err?.response?.data?.message || 'Failed to update profile photo. Please try again.');
+        } finally {
+            setUploadingPhoto(false);
         }
     };
 
@@ -209,13 +217,23 @@ export default function EditProfileScreen() {
                     text: 'Remove Photo',
                     style: 'destructive' as const,
                     onPress: async () => {
-                        setProfilePhoto(null);
-                        setUser((prev: any) => {
-                            const updated = { ...prev };
-                            delete updated.profilePicture;
-                            return updated;
-                        });
-                        await removeStoredProfilePhoto();
+                        setUploadingPhoto(true);
+                        try {
+                            await api.patch('/auth/profile-picture', { profilePicture: null });
+                            setProfilePhoto(null);
+                            setUser((prev: any) => {
+                                const updated = { ...prev };
+                                delete updated.profilePicture;
+                                return updated;
+                            });
+                            await removeStoredProfilePhoto();
+                            Alert.alert('Success', 'Profile photo removed.');
+                        } catch (err: any) {
+                            console.error('Error removing profile photo:', err);
+                            Alert.alert('Error', err?.response?.data?.message || 'Failed to remove profile photo.');
+                        } finally {
+                            setUploadingPhoto(false);
+                        }
                     }
                 }] : []),
                 { text: 'Cancel', style: 'cancel' as const },
@@ -384,7 +402,9 @@ export default function EditProfileScreen() {
                     <View style={s.avatarWrap}>
                         <TouchableOpacity style={s.avatarTouchable} onPress={handlePhotoOptions} activeOpacity={0.8}>
                             <View style={s.avatar}>
-                                {profilePhoto ? (
+                                {uploadingPhoto ? (
+                                    <ActivityIndicator size="small" color={ACCENT} />
+                                ) : profilePhoto ? (
                                     <Image source={{ uri: profilePhoto }} style={s.avatarImg} />
                                 ) : (
                                     <Text style={s.avatarText}>{initials}</Text>

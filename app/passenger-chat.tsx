@@ -43,7 +43,7 @@ export default function PassengerChatScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
-    const params = useLocalSearchParams<{ name?: string, rideId?: string }>();
+    const params = useLocalSearchParams<{ name?: string, rideId?: string, photo?: string }>();
     const passengerName = params.name || 'Passenger';
     const { socket, isConnected } = useContext(SocketContext);
 
@@ -320,8 +320,12 @@ export default function PassengerChatScreen() {
                 >
                     {/* Passenger card */}
                     <View style={styles.passengerCard}>
-                        <View style={styles.passengerAvatar}>
-                            <Ionicons name="person" size={24} color={ACCENT} />
+                        <View style={[styles.passengerAvatar, { overflow: 'hidden' }]}>
+                            {params.photo ? (
+                                <Image source={{ uri: params.photo }} style={{ width: '100%', height: '100%' }} />
+                            ) : (
+                                <Ionicons name="person" size={24} color={ACCENT} />
+                            )}
                         </View>
                         <View>
                             <Text style={styles.passengerName}>{passengerName}</Text>
