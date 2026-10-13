@@ -280,7 +280,16 @@ export default function PassengerChatScreen() {
                         <Ionicons name="chevron-back" size={20} color="#555" />
                     </View>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{passengerName}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginLeft: 10 }}>
+                    {params.photo ? (
+                        <Image source={{ uri: params.photo }} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#f0f0f0' }} resizeMode="cover" />
+                    ) : (
+                        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
+                            <Ionicons name="person" size={18} color="#888" />
+                        </View>
+                    )}
+                    <Text style={styles.headerTitle} numberOfLines={1}>{passengerName}</Text>
+                </View>
                 <View style={styles.headerActions}>
                     <TouchableOpacity
                         style={styles.actionIcon}

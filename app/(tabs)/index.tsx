@@ -640,8 +640,14 @@ export default function HomeScreen() {
           });
           if (res.data?.ride) {
               const updatedRide = res.data.ride;
-              if (currentRide.passengerId && typeof currentRide.passengerId === 'object' && typeof updatedRide.passengerId === 'string') {
+              if (currentRide.passengerId && typeof currentRide.passengerId === 'object' && (!updatedRide.passengerId || typeof updatedRide.passengerId === 'string')) {
                   updatedRide.passengerId = currentRide.passengerId;
+              } else if (currentRide.passengerId && typeof currentRide.passengerId === 'object' && updatedRide.passengerId && typeof updatedRide.passengerId === 'object') {
+                  updatedRide.passengerId = {
+                      ...currentRide.passengerId,
+                      ...updatedRide.passengerId,
+                      profilePicture: updatedRide.passengerId.profilePicture || currentRide.passengerId.profilePicture,
+                  };
               }
               setCurrentRide(updatedRide);
           }
@@ -814,6 +820,7 @@ export default function HomeScreen() {
   const passengerName = currentRide?.passengerId 
     ? `${currentRide.passengerId.firstName} ${currentRide.passengerId.lastName}` 
     : 'Passenger';
+  const passengerPhoto = currentRide?.passengerId?.profilePicture || null;
   const fare = currentRide?.fare || '70.00';
   const pickupFull = currentRide?.pickup?.address || 'Pickup Location';
   const dropoffFull = currentRide?.dropoff?.address || 'Dropoff Location';
@@ -835,7 +842,20 @@ export default function HomeScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.section}>
                     <Text style={styles.sectionLabel}>Passenger</Text>
-                    <Text style={styles.sectionValue}>{passengerName}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                      {passengerPhoto ? (
+                        <Image
+                          source={{ uri: passengerPhoto }}
+                          style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#f0f0f0' }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
+                          <Ionicons name="person" size={18} color="#888" />
+                        </View>
+                      )}
+                      <Text style={styles.sectionValue}>{passengerName}</Text>
+                    </View>
                 </View>
                 <View style={styles.section}>
                     <Text style={styles.sectionLabel}>Total Fare</Text>
@@ -1065,15 +1085,16 @@ export default function HomeScreen() {
                     </Animated.View>
                 </GestureDetector>
 
-                <View style={[styles.row, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
-                    {currentRide?.passengerId?.profilePicture ? (
+                <View style={[styles.row, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+                    {passengerPhoto ? (
                       <Image
-                        source={{ uri: currentRide.passengerId.profilePicture }}
-                        style={{ width: 34, height: 34, borderRadius: 17 }}
+                        source={{ uri: passengerPhoto }}
+                        style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f0f0f0' }}
+                        resizeMode="cover"
                       />
                     ) : (
-                      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="person" size={18} color="#888" />
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="person" size={20} color="#888" />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
