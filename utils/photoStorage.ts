@@ -54,37 +54,17 @@ export async function compressImageIfWeb(uriOrBase64: string, maxDim = 300, qual
   });
 }
 
-export async function saveStoredProfilePhoto(data: string): Promise<void> {
-  let photoToSave = data;
-  try {
-    photoToSave = await compressImageIfWeb(data);
-  } catch (e) {}
-
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(KEY, photoToSave);
-    }
-  } catch (e) {
-    console.error('Failed to save profile picture to localStorage:', e);
-  }
-
-  try {
-    await SecureStore.setItemAsync(KEY, photoToSave);
-  } catch (e) {}
+export async function saveStoredProfilePhoto(_data?: string): Promise<void> {
+  // Profile photos are saved directly to Cloudinary and the database.
+  // We do not save photos locally on the phone to prevent leakage across accounts.
+  await removeStoredProfilePhoto();
 }
 
 export async function getStoredProfilePhoto(): Promise<string | null> {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const val = window.localStorage.getItem(KEY);
-      if (val) return val;
-    }
-  } catch (e) {}
-  try {
-    return await SecureStore.getItemAsync(KEY);
-  } catch (e) {
-    return null;
-  }
+  // Deprecated: Only load Cloudinary URLs saved in the database (user.profilePicture).
+  // Automatically purge any legacy local photo stored on the device.
+  removeStoredProfilePhoto().catch(() => {});
+  return null;
 }
 
 export async function removeStoredProfilePhoto(): Promise<void> {
@@ -97,3 +77,6 @@ export async function removeStoredProfilePhoto(): Promise<void> {
     await SecureStore.deleteItemAsync(KEY);
   } catch (e) {}
 }
+
+// Purge any legacy stored phone photo immediately upon module evaluation
+removeStoredProfilePhoto().catch(() => {});

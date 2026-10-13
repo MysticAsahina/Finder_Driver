@@ -1,7 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { createContext, ReactNode, useEffect, useState } from "react";
 import api, { setAxiosAccessToken } from "../utils/axios";
-import { getStoredProfilePhoto } from '../utils/photoStorage';
 
 // LOCAL
 
@@ -147,16 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setAccessToken(data.accessToken);
       setAxiosAccessToken(data.accessToken);
-      const serverPhoto = data.user?.profilePicture;
-      const savedPhoto = await getStoredProfilePhoto();
-      const resolvedPhoto = serverPhoto !== undefined ? serverPhoto : savedPhoto;
-      if (serverPhoto) {
-        saveStoredProfilePhoto(serverPhoto).catch(() => {});
-      } else if (serverPhoto === null) {
-        removeStoredProfilePhoto().catch(() => {});
-      }
+      const profilePhoto = data.user?.profilePicture || null;
 
-      let userDataToSet = data.user ? { ...data.user, profilePicture: resolvedPhoto } : null;
+      let userDataToSet = data.user ? { ...data.user, profilePicture: profilePhoto } : null;
 
       // If data.user was not present on refresh response, fallback to /auth/me
       if (!userDataToSet?.firstName) {
@@ -167,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (meRes.ok) {
             const meData = await meRes.json();
             if (meData.user) {
-              userDataToSet = { ...meData.user, profilePicture: resolvedPhoto };
+              userDataToSet = { ...meData.user, profilePicture: meData.user.profilePicture || null };
             }
           }
         } catch (meErr) {

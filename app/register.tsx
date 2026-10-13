@@ -37,6 +37,9 @@ function validateMobile(v: string): string | null {
   return null;
 }
 
+import { removeStoredProfilePhoto } from '@/utils/photoStorage';
+import * as SecureStore from 'expo-secure-store';
+
 export default function DriverRegistrationScreen() {
   const router = useRouter();
   const [firstName,    setFirstName]    = useState('');
@@ -45,6 +48,11 @@ export default function DriverRegistrationScreen() {
   const [agreed,       setAgreed]       = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [loading,      setLoading]      = useState(false);
+
+  React.useEffect(() => {
+    removeStoredProfilePhoto().catch(() => {});
+    SecureStore.deleteItemAsync('userData').catch(() => {});
+  }, []);
 
   const handleSubmit = async () => {
     setError(null);

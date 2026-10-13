@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import { AuthContext } from '@/context/AuthContext';
 import api from '@/utils/axios';
-import { saveStoredProfilePhoto, getStoredProfilePhoto, removeStoredProfilePhoto, compressImageIfWeb } from '@/utils/photoStorage';
+import { removeStoredProfilePhoto, compressImageIfWeb } from '@/utils/photoStorage';
 
 const ACCENT = '#FF5F00';
 
@@ -132,16 +132,7 @@ export default function EditProfileScreen() {
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     React.useEffect(() => {
-        if (user?.profilePicture) {
-            setProfilePhoto(user.profilePicture);
-        } else {
-            getStoredProfilePhoto().then((photo) => {
-                if (photo) {
-                    setProfilePhoto(photo);
-                    setUser((prev: any) => prev ? { ...prev, profilePicture: photo } : prev);
-                }
-            });
-        }
+        setProfilePhoto(user?.profilePicture || null);
     }, [user?.profilePicture]);
 
     React.useEffect(() => {
@@ -161,10 +152,9 @@ export default function EditProfileScreen() {
             api.get('/auth/me')
                 .then(async (res) => {
                     if (res.data?.user) {
-                        const savedPhoto = await getStoredProfilePhoto();
                         const fullUser = {
                             ...res.data.user,
-                            profilePicture: res.data.user.profilePicture || savedPhoto,
+                            profilePicture: res.data.user.profilePicture || null,
                         };
                         setUser((prev: any) => ({ ...(prev || {}), ...fullUser }));
                         await SecureStore.setItemAsync('userData', JSON.stringify(fullUser)).catch(() => {});
@@ -179,10 +169,12 @@ export default function EditProfileScreen() {
         try {
             const compressed = await compressImageIfWeb(uriOrBase64);
             const res = await api.patch('/auth/profile-picture', { profilePicture: compressed });
-            const serverPhoto = res.data.profilePicture || res.data.user?.profilePicture || compressed;
-            setProfilePhoto(serverPhoto);
-            setUser((prev: any) => ({ ...prev, profilePicture: serverPhoto }));
-            await saveStoredProfilePhoto(serverPhoto);
+            const serverPhoto = res.data.profilePicture || res.data.user?.profilePicture;
+            if (serverPhoto) {
+                setProfilePhoto(serverPhoto);
+                setUser((prev: any) => ({ ...prev, profilePicture: serverPhoto }));
+            }
+            await removeStoredProfilePhoto();
             Alert.alert('Success', 'Profile photo updated successfully!');
         } catch (err: any) {
             console.error('Error updating driver profile photo:', err);

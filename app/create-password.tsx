@@ -22,6 +22,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '@/utils/axios';
+import * as SecureStore from 'expo-secure-store';
+import { removeStoredProfilePhoto } from '@/utils/photoStorage';
 
 const ACCENT       = Colors.light.tint;
 const MIN_PASSWORD = 8;
@@ -61,6 +63,8 @@ async function submitApplication(router: ReturnType<typeof useRouter>) {
     const data = res.data;
 
     clearDriverRegistration();
+    await removeStoredProfilePhoto().catch(() => {});
+    await SecureStore.deleteItemAsync('userData').catch(() => {});
     router.replace('/waiting-approval');
   } catch (err: any) {
     if (err.response?.data?.message) {

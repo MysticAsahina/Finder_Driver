@@ -1,6 +1,5 @@
 import { AuthContext } from '@/context/AuthContext';
 import api from '@/utils/axios';
-import { getStoredProfilePhoto } from '@/utils/photoStorage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -31,10 +30,9 @@ export default function UserScreen() {
             api.get('/auth/me')
                 .then(async (res) => {
                     if (res.data?.user) {
-                        const savedPhoto = await getStoredProfilePhoto();
                         const fullUser = {
                             ...res.data.user,
-                            profilePicture: res.data.user.profilePicture || savedPhoto,
+                            profilePicture: res.data.user.profilePicture || null,
                         };
                         setUser((prev: any) => ({
                             ...(prev || {}),
@@ -43,13 +41,7 @@ export default function UserScreen() {
                         await SecureStore.setItemAsync('userData', JSON.stringify(fullUser)).catch(() => {});
                     }
                 })
-                .catch(() => {
-                    getStoredProfilePhoto().then((photo) => {
-                        if (photo) {
-                            setUser((prev: any) => prev ? { ...prev, profilePicture: prev.profilePicture || photo } : prev);
-                        }
-                    });
-                });
+                .catch(() => {});
         }, [setUser])
     );
 
