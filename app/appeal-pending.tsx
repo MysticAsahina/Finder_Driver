@@ -15,7 +15,7 @@ export default function AppealPendingScreen() {
 
     const handleSupportPage = () => {
         // Routes to Help Centre
-        router.push('/help-centre');
+        router.push({ pathname: '/help-centre', params: { fromAppeal: 'true' } });
     };
 
     const handleLogout = () => {

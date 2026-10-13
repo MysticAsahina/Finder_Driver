@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '@/context/AuthContext';
 import { getAppealToken } from '@/store/authStore';
@@ -77,19 +77,9 @@ export default function HelpCentreScreen() {
         }, [accessToken])
     );
 
-    const allTickets = [...tickets];
-    if (appeal && !allTickets.some(t => t.isAppeal || t._id === appeal._id)) {
-        allTickets.unshift({
-            _id: appeal._id,
-            ticketNumber: appeal.ticketNumber,
-            subject: `Suspension Appeal: ${appeal.reason || 'Account Review'}`,
-            status: appeal.status === 'pending' ? 'open' : (appeal.status === 'lifted' ? 'resolved' : 'closed'),
-            rawStatus: appeal.status,
-            updatedAt: appeal.updatedAt || appeal.createdAt,
-            createdAt: appeal.createdAt,
-            isAppeal: true
-        });
-    }
+    const params = useLocalSearchParams<{ fromAppeal?: string }>();
+    const appealToken = getAppealToken();
+    const isAppealStage = Boolean(params.fromAppeal === 'true' || appealToken || (!accessToken && appeal));
 
     const openTicketsCount = tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
 
@@ -157,106 +147,99 @@ export default function HelpCentreScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Contact Support Card */}
-                <TouchableOpacity style={styles.supportCard} activeOpacity={0.8} onPress={handleSupportBannerPress}>
-                    <View style={styles.supportIcon}>
-                        <Ionicons name="headset" size={24} color={ACCENT} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.supportText}>
-                            Contact support for assistance or to share your feedback.
-                        </Text>
-                        <Text style={styles.supportTap}>Tap to start a new chat →</Text>
-                    </View>
-                </TouchableOpacity>
-
-                {/* Active Appeal Banner / Section */}
-                {appeal && (
-                    <View style={styles.appealSection}>
-                        <View style={styles.appealHeaderRow}>
-                            <Text style={styles.appealSectionTitle}>Suspension Appeal</Text>
-                            <View style={[styles.appealStatusPill, appeal.status === 'pending' ? styles.statusPillPending : styles.statusPillResolved]}>
-                                <Text style={styles.appealStatusText}>
-                                    {appeal.status === 'pending' ? 'Pending Review' : (appeal.status === 'lifted' ? 'Approved' : 'Rejected')}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <TouchableOpacity
-                            style={styles.appealCard}
-                            activeOpacity={0.85}
-                            onPress={() => router.push({ pathname: '/support-chat', params: { ticketId: appeal._id, isAppeal: 'true' } })}
-                        >
-                            <View style={styles.appealCardTop}>
-                                <View style={{ flex: 1, marginRight: 8 }}>
-                                    <Text style={styles.appealTicketCode}>{appeal.ticketNumber}</Text>
-                                    <Text style={styles.appealSubjectText} numberOfLines={2}>{appeal.reason}</Text>
+                {isAppealStage ? (
+                    loading ? (
+                        <ActivityIndicator style={{ marginTop: 28 }} color={ACCENT} />
+                    ) : appeal ? (
+                        <View style={styles.appealSection}>
+                            <View style={styles.appealHeaderRow}>
+                                <Text style={styles.appealSectionTitle}>Suspension Appeal</Text>
+                                <View style={[styles.appealStatusPill, appeal.status === 'pending' ? styles.statusPillPending : styles.statusPillResolved]}>
+                                    <Text style={styles.appealStatusText}>
+                                        {appeal.status === 'pending' ? 'Pending Review' : (appeal.status === 'lifted' ? 'Approved' : 'Rejected')}
+                                    </Text>
                                 </View>
-                                <Ionicons name="shield-checkmark" size={26} color={ACCENT} />
                             </View>
 
-                            <View style={styles.appealDivider} />
-
-                            <View style={styles.appealFooterRow}>
-                                <Text style={styles.appealDateText}>
-                                    Submitted: {new Date(appeal.createdAt).toLocaleDateString()}
-                                </Text>
-                                <Text style={styles.appealAttemptText}>
-                                    Tap to open chat →
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                {/* Support Logs History */}
-                <Text style={styles.historyTitle}>Support Tickets</Text>
-
-                {loading ? (
-                    <ActivityIndicator style={{ marginTop: 20 }} color={ACCENT} />
-                ) : allTickets.length === 0 ? (
-                    <Text style={styles.emptyText}>You have no support tickets.</Text>
-                ) : (
-                    <View style={styles.historyList}>
-                        {allTickets.map(ticket => (
                             <TouchableOpacity
-                                key={ticket._id}
-                                style={styles.logCard}
+                                style={styles.appealCard}
                                 activeOpacity={0.85}
-                                onPress={() => {
-                                    if (ticket.isAppeal) {
-                                        router.push({ pathname: '/support-chat', params: { ticketId: ticket._id, isAppeal: 'true' } });
-                                    } else {
-                                        router.push({ pathname: '/support-chat', params: { ticketId: ticket._id } });
-                                    }
-                                }}
+                                onPress={() => router.push({ pathname: '/support-chat', params: { ticketId: appeal._id, isAppeal: 'true' } })}
                             >
-                                <View style={styles.logHeader}>
-                                    <Text style={styles.logTitle}>{ticket.subject}</Text>
-                                    <Text style={[styles.logStatus, (ticket.status === 'open' || ticket.rawStatus === 'pending') ? styles.statusPending : styles.statusResolved]}>
-                                        {ticket.rawStatus === 'pending'
-                                            ? 'Pending Review'
-                                            : ticket.rawStatus === 'lifted'
-                                                ? 'Approved'
-                                                : ticket.rawStatus === 'disabled'
-                                                    ? 'Rejected'
-                                                    : ticket.status === 'open'
-                                                        ? 'Open'
-                                                        : 'Resolved'}
-                                    </Text>
+                                <View style={styles.appealCardTop}>
+                                    <View style={{ flex: 1, marginRight: 8 }}>
+                                        <Text style={styles.appealTicketCode}>{appeal.ticketNumber}</Text>
+                                        <Text style={styles.appealSubjectText} numberOfLines={2}>{appeal.reason || 'Account Review'}</Text>
+                                    </View>
+                                    <Ionicons name="shield-checkmark" size={26} color={ACCENT} />
                                 </View>
 
-                                <View style={styles.logFooter}>
-                                    <Text style={styles.logDate}>
-                                        {new Date(ticket.updatedAt).toLocaleDateString('en-US', {
-                                            month: 'short', day: 'numeric', year: 'numeric'
-                                        })}
+                                <View style={styles.appealDivider} />
+
+                                <View style={styles.appealFooterRow}>
+                                    <Text style={styles.appealDateText}>
+                                        Submitted: {new Date(appeal.createdAt).toLocaleDateString()}
                                     </Text>
-                                    <Text style={styles.logRef}>Ticket #{ticket.ticketNumber || ticket._id.slice(-6).toUpperCase()}</Text>
+                                    <Text style={styles.appealAttemptText}>
+                                        Tap to open chat →
+                                    </Text>
                                 </View>
                             </TouchableOpacity>
-                        ))}
-                    </View>
+                        </View>
+                    ) : (
+                        <Text style={styles.emptyText}>No active appeal found.</Text>
+                    )
+                ) : (
+                    <>
+                        {/* Contact Support Card */}
+                        <TouchableOpacity style={styles.supportCard} activeOpacity={0.8} onPress={handleSupportBannerPress}>
+                            <View style={styles.supportIcon}>
+                                <Ionicons name="headset" size={24} color={ACCENT} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.supportText}>
+                                    Contact support for assistance or to share your feedback.
+                                </Text>
+                                <Text style={styles.supportTap}>Tap to start a new chat →</Text>
+                            </View>
+                        </TouchableOpacity>
+
+                        {/* Support Logs History */}
+                        <Text style={styles.historyTitle}>Support Tickets</Text>
+
+                        {loading ? (
+                            <ActivityIndicator style={{ marginTop: 20 }} color={ACCENT} />
+                        ) : tickets.length === 0 ? (
+                            <Text style={styles.emptyText}>You have no support tickets.</Text>
+                        ) : (
+                            <View style={styles.historyList}>
+                                {tickets.map(ticket => (
+                                    <TouchableOpacity
+                                        key={ticket._id}
+                                        style={styles.logCard}
+                                        activeOpacity={0.85}
+                                        onPress={() => router.push({ pathname: '/support-chat', params: { ticketId: ticket._id } })}
+                                    >
+                                        <View style={styles.logHeader}>
+                                            <Text style={styles.logTitle}>{ticket.subject}</Text>
+                                            <Text style={[styles.logStatus, (ticket.status === 'open' || ticket.status === 'in_progress') ? styles.statusPending : styles.statusResolved]}>
+                                                {ticket.status === 'open' || ticket.status === 'in_progress' ? 'Open' : 'Resolved'}
+                                            </Text>
+                                        </View>
+
+                                        <View style={styles.logFooter}>
+                                            <Text style={styles.logDate}>
+                                                {new Date(ticket.updatedAt).toLocaleDateString('en-US', {
+                                                    month: 'short', day: 'numeric', year: 'numeric'
+                                                })}
+                                            </Text>
+                                            <Text style={styles.logRef}>Ticket #{ticket.ticketNumber || ticket._id.slice(-6).toUpperCase()}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </>
                 )}
             </ScrollView>
 
