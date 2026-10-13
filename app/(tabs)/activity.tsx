@@ -1,4 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
+import { AuthContext } from '@/context/AuthContext';
+import { recordRideReport } from '@/utils/reportStorage';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -22,6 +24,7 @@ interface TripInfo {
     distance: string;
     status: string;
     cancelReason?: string;
+    passengerId?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -69,12 +72,30 @@ export default function ActivityScreen() {
         { key: 'cancelled', label: 'Cancelled' },
     ];
 
+    const { user } = useContext(AuthContext);
+    const [reportingTrip, setReportingTrip] = useState<TripInfo | null>(null);
+    const [selectedReason, setSelectedReason] = useState<string>('');
+
+    const DRIVER_COMPLETED_REASONS = [
+        'Underpayment / Fare Evasion',
+        'Unruly / Disrespectful Conduct',
+        'Vehicle Damage / Soiling',
+        'Demanded Hazardous / Prohibited Route',
+    ];
+
+    const DRIVER_CANCELLED_REASONS = [
+        'Passenger No-Show',
+        'Inaccessible / Wrong Pickup Location',
+        'Passenger Unresponsive',
+        'Last-Minute Cancellation after Travel',
+    ];
+
     const mapRideToTrip = (r: any): TripInfo => {
         const passenger = r.passengerId;
-        const passengerName = passenger ? `${passenger.firstName} ${passenger.lastName}` : 'Passenger';
+        const passengerName = passenger ? `${passenger.firstName || ''} ${passenger.lastName || ''}`.trim() : 'Passenger';
         return {
             id: r._id,
-            name: passengerName,
+            name: passengerName || 'Passenger',
             pickup: r.pickup?.address || 'Unknown pickup',
             dropoff: r.dropoff?.address || 'Unknown dropoff',
             date: formatDate(r.createdAt),
@@ -84,40 +105,68 @@ export default function ActivityScreen() {
             duration: r.actualDurationMins ? `${Math.round(r.actualDurationMins * 10) / 10} minutes` : (r.durationMins ? `${Math.round(r.durationMins * 10) / 10} minutes` : '–'),
             distance: r.distanceKm ? `${r.distanceKm.toFixed(1)} Km` : '–',
             status: r.status || 'unknown',
-            cancelReason: r.cancellationData?.reason || ''
+            cancelReason: r.cancellationData?.reason || '',
+            passengerId: passenger?._id || (typeof passenger === 'string' ? passenger : undefined),
         };
     };
 
     const handleReport = (trip: TripInfo) => {
+        setSelectedTrip(null);
+        setSelectedReason('');
+        setReportingTrip(trip);
+    };
+
+    const submitReport = async () => {
         const { Alert } = require('react-native');
+        if (!reportingTrip || !selectedReason) {
+            Alert.alert("Please Select Reason", "Kindly select a reason for reporting this ride.");
+            return;
+        }
         if (creatingReport) return;
-        
-        Alert.alert(
-            "Report Issue",
-            `Are you sure you want to report an issue for ${trip.refId}? This will open a new support ticket.`,
-            [
-                { text: "Cancel", style: "cancel" },
-                { 
-                    text: "Report", 
-                    style: "destructive",
-                    onPress: async () => {
-                        setCreatingReport(true);
-                        try {
-                            const res = await api.post('/support/tickets', { 
-                                subject: "Ride Report", 
-                                rideId: trip.id 
-                            });
-                            setSelectedTrip(null);
-                            router.push(`/support-chat?ticketId=${res.data.ticket._id}`);
-                        } catch (err: any) {
-                            Alert.alert("Error", err.response?.data?.message || "Failed to create support ticket.");
-                        } finally {
-                            setCreatingReport(false);
-                        }
-                    }
-                }
-            ]
-        );
+
+        setCreatingReport(true);
+        try {
+            const reportedTargetId = reportingTrip.passengerId || 'passenger-unknown';
+            const reportedTargetName = reportingTrip.name || 'Passenger';
+            const reporterId = user?._id || 'driver-current';
+
+            // 1. Record report in shared storage & check 24h threshold
+            await recordRideReport({
+                rideId: reportingTrip.id,
+                rideRefId: reportingTrip.refId,
+                reporterUserId: reporterId,
+                reporterRole: 'Driver',
+                reportedUserId: reportedTargetId,
+                reportedUserName: reportedTargetName,
+                reportedUserRole: 'Passenger',
+                reason: selectedReason,
+            });
+
+            // 2. Always create a new support ticket for the reported ride
+            const res = await api.post('/support/tickets', { 
+                subject: "Passenger Complaint",
+                category: "Passenger Complaint",
+                rideId: reportingTrip.id 
+            });
+
+            const newTicket = res.data?.ticket;
+            if (newTicket?._id) {
+                // Post report details as opening message in the new ticket
+                await api.post(`/support/tickets/${newTicket._id}/messages`, {
+                    body: `[Ride Report Issue: ${reportingTrip.refId}]\nReason: ${selectedReason}`
+                }).catch(() => {});
+
+                setReportingTrip(null);
+                setSelectedReason('');
+                router.push(`/support-chat?ticketId=${newTicket._id}`);
+            } else {
+                throw new Error(res.data?.message || "Failed to create support ticket.");
+            }
+        } catch (err: any) {
+            Alert.alert("Report Failed", err.response?.data?.message || err.message || "Failed to submit report ticket.");
+        } finally {
+            setCreatingReport(false);
+        }
     };
 
     useFocusEffect(
@@ -265,6 +314,85 @@ export default function ActivityScreen() {
                                 )}
                             </>
                         )}
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Driver Report Reason Modal */}
+            <Modal
+                visible={reportingTrip !== null}
+                transparent
+                animationType="fade"
+                onRequestClose={() => {
+                    if (!creatingReport) setReportingTrip(null);
+                }}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => {
+                        if (!creatingReport) setReportingTrip(null);
+                    }}
+                >
+                    <TouchableOpacity
+                        style={styles.reportModalCard}
+                        activeOpacity={1}
+                        onPress={() => {}}
+                    >
+                        <View style={styles.reportModalHeader}>
+                            <Text style={styles.reportModalTitle}>Report Passenger Issue</Text>
+                            <Text style={styles.reportModalSubtitle}>
+                                Select the reason why you are reporting {reportingTrip?.refId} ({reportingTrip?.status === 'cancelled' || reportingTrip?.status === 'canceled' ? 'Cancelled Ride' : 'Completed Ride'}):
+                            </Text>
+                        </View>
+
+                        <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                            {(reportingTrip?.status === 'cancelled' || reportingTrip?.status === 'canceled'
+                                ? DRIVER_CANCELLED_REASONS
+                                : DRIVER_COMPLETED_REASONS
+                            ).map((reason) => {
+                                const isChosen = selectedReason === reason;
+                                return (
+                                    <TouchableOpacity
+                                        key={reason}
+                                        style={[styles.reasonOption, isChosen && styles.reasonOptionSelected]}
+                                        activeOpacity={0.7}
+                                        onPress={() => setSelectedReason(reason)}
+                                    >
+                                        <View style={[styles.reasonRadio, isChosen && styles.reasonRadioSelected]}>
+                                            {isChosen && <View style={styles.reasonRadioInner} />}
+                                        </View>
+                                        <Text style={[styles.reasonText, isChosen && styles.reasonTextSelected]}>
+                                            {reason}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+
+                        <View style={styles.reportActions}>
+                            <TouchableOpacity
+                                style={styles.reportCancelBtn}
+                                activeOpacity={0.7}
+                                disabled={creatingReport}
+                                onPress={() => setReportingTrip(null)}
+                            >
+                                <Text style={styles.reportCancelBtnTxt}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.reportSubmitBtn, (!selectedReason || creatingReport) && { opacity: 0.55 }]}
+                                activeOpacity={0.8}
+                                disabled={!selectedReason || creatingReport}
+                                onPress={submitReport}
+                            >
+                                {creatingReport ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.reportSubmitBtnTxt}>Submit Report</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </TouchableOpacity>
                 </TouchableOpacity>
             </Modal>
@@ -571,4 +699,109 @@ const styles = StyleSheet.create({
     empty: { alignItems: 'center', paddingTop: 60 },
     emptyIcon: { fontSize: 36, marginBottom: 10 },
     emptyText: { fontSize: 15, color: '#aaa', fontWeight: '500' },
+
+    reportModalCard: {
+        width: '90%',
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        padding: 20,
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18,
+        shadowRadius: 14,
+    },
+    reportModalHeader: {
+        marginBottom: 14,
+    },
+    reportModalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1a1a1a',
+        marginBottom: 4,
+    },
+    reportModalSubtitle: {
+        fontSize: 13,
+        color: '#666',
+        lineHeight: 18,
+    },
+    reasonOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        backgroundColor: '#f8faf8',
+        borderWidth: 1,
+        borderColor: '#e2eae2',
+        marginBottom: 8,
+    },
+    reasonOptionSelected: {
+        backgroundColor: '#f0fdf4',
+        borderColor: ACCENT,
+    },
+    reasonRadio: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        borderWidth: 2,
+        borderColor: '#bbb',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+    },
+    reasonRadioSelected: {
+        borderColor: ACCENT,
+    },
+    reasonRadioInner: {
+        width: 9,
+        height: 9,
+        borderRadius: 4.5,
+        backgroundColor: ACCENT,
+    },
+    reasonText: {
+        fontSize: 13.5,
+        color: '#333',
+        fontWeight: '500',
+        flex: 1,
+    },
+    reasonTextSelected: {
+        color: ACCENT,
+        fontWeight: '700',
+    },
+    reportActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 16,
+        gap: 12,
+    },
+    reportCancelBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#ccc',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
+    },
+    reportCancelBtnTxt: {
+        color: '#666',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    reportSubmitBtn: {
+        flex: 1.4,
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#ff4444',
+    },
+    reportSubmitBtnTxt: {
+        color: '#fff',
+        fontWeight: '700',
+        fontSize: 14,
+    },
 });
