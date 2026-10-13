@@ -108,6 +108,7 @@ api.interceptors.response.use(
                 Alert.alert("Session Expired", "Your account has been logged in on another device.");
                 await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
                 await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+                await SecureStore.deleteItemAsync('userData').catch(() => {});
                 await setAxiosAccessToken(null);
                 if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
                 return Promise.reject(error);
@@ -151,6 +152,9 @@ api.interceptors.response.use(
                 if (newRefreshToken) {
                     await SecureStore.setItemAsync('refreshToken', newRefreshToken).catch(() => {});
                 }
+                if (response.data.user) {
+                    await SecureStore.setItemAsync('userData', JSON.stringify(response.data.user)).catch(() => {});
+                }
                 
                 await setAxiosAccessToken(newAccessToken);
                 if (onTokenRefresh) onTokenRefresh(newAccessToken);
@@ -176,6 +180,7 @@ api.interceptors.response.use(
                 processQueue(err, null);
                 await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
                 await SecureStore.deleteItemAsync('accessToken').catch(() => {});
+                await SecureStore.deleteItemAsync('userData').catch(() => {});
                 await setAxiosAccessToken(null);
 
                 if (err.response?.status === 401 && err.response?.data?.message === "Session expired due to login on another device.") {

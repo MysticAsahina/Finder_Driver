@@ -79,6 +79,9 @@ export default function OtpScreen() {
           setEmergencyContactState(data.user.emergencyContact);
         }
         await SecureStore.setItemAsync('refreshToken', data.refreshToken);
+        if (data.user) {
+          await SecureStore.setItemAsync('userData', JSON.stringify(data.user)).catch(() => {});
+        }
         clearAuth();
         router.replace('/(tabs)');
 

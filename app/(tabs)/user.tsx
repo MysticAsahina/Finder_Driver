@@ -28,17 +28,34 @@ export default function UserScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
-            getStoredProfilePhoto().then((photo) => {
-                if (photo) {
-                    setUser((prev: any) => prev ? { ...prev, profilePicture: prev.profilePicture || photo } : prev);
-                }
-            });
+            api.get('/auth/me')
+                .then(async (res) => {
+                    if (res.data?.user) {
+                        const savedPhoto = await getStoredProfilePhoto();
+                        const fullUser = {
+                            ...res.data.user,
+                            profilePicture: res.data.user.profilePicture || savedPhoto,
+                        };
+                        setUser((prev: any) => ({
+                            ...(prev || {}),
+                            ...fullUser,
+                        }));
+                        await SecureStore.setItemAsync('userData', JSON.stringify(fullUser)).catch(() => {});
+                    }
+                })
+                .catch(() => {
+                    getStoredProfilePhoto().then((photo) => {
+                        if (photo) {
+                            setUser((prev: any) => prev ? { ...prev, profilePicture: prev.profilePicture || photo } : prev);
+                        }
+                    });
+                });
         }, [setUser])
     );
 
-    const displayName = user
+    const displayName = (user?.firstName && user?.lastName)
         ? `${user.firstName} ${user.lastName}`
-        : 'Driver';
+        : (user?.firstName || user?.lastName || 'Driver');
 
     const handleLogout = () => {
         Alert.alert(
@@ -54,7 +71,8 @@ export default function UserScreen() {
                         if (refreshToken) {
                             await api.post('/auth/logout', { refreshToken }).catch(() => { }); // non-fatal
                         }
-                        await SecureStore.deleteItemAsync('refreshToken');
+                        await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
+                        await SecureStore.deleteItemAsync('userData').catch(() => {});
                         try {
                             await Location.stopLocationUpdatesAsync('background-location-task');
                         } catch (err) {

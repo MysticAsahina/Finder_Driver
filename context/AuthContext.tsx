@@ -90,6 +90,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // Immediately restore cached user to avoid UI flashing empty / "undefined undefined"
+      const cachedUserData = await SecureStore.getItemAsync("userData").catch(() => null);
+      if (cachedUserData) {
+        try {
+          const parsed = JSON.parse(cachedUserData);
+          if (parsed && typeof parsed === 'object') {
+            setUser(parsed);
+            if (parsed.emergencyContact) {
+              setEmergencyContactState(parsed.emergencyContact);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to parse cached userData:", e);
+        }
+      }
+
       const refreshToken =
         await SecureStore.getItemAsync("refreshToken");
 
@@ -119,7 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) {
         if (res.status === 401) {
-          await SecureStore.deleteItemAsync("refreshToken");
+          await SecureStore.deleteItemAsync("refreshToken").catch(() => {});
+          await SecureStore.deleteItemAsync("userData").catch(() => {});
           setAccessToken(null);
           setAxiosAccessToken(null);
           setUser(null);
@@ -138,9 +155,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (serverPhoto === null) {
         removeStoredProfilePhoto().catch(() => {});
       }
-      setUser({ ...data.user, profilePicture: resolvedPhoto });
-      if (data.user?.emergencyContact) {
-        setEmergencyContactState(data.user.emergencyContact);
+
+      let userDataToSet = data.user ? { ...data.user, profilePicture: resolvedPhoto } : null;
+
+      // If data.user was not present on refresh response, fallback to /auth/me
+      if (!userDataToSet?.firstName) {
+        try {
+          const meRes = await fetch(`${API_URL}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${data.accessToken}` },
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            if (meData.user) {
+              userDataToSet = { ...meData.user, profilePicture: resolvedPhoto };
+            }
+          }
+        } catch (meErr) {
+          console.warn("Failed to fetch /auth/me fallback during restoreSession:", meErr);
+        }
+      }
+
+      if (userDataToSet) {
+        setUser(userDataToSet);
+        await SecureStore.setItemAsync('userData', JSON.stringify(userDataToSet)).catch(() => {});
+      }
+
+      if (data.user?.emergencyContact || userDataToSet?.emergencyContact) {
+        setEmergencyContactState(data.user?.emergencyContact || userDataToSet?.emergencyContact);
       }
       registerPushToken(data.accessToken);
 

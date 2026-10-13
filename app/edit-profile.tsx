@@ -138,11 +138,41 @@ export default function EditProfileScreen() {
             getStoredProfilePhoto().then((photo) => {
                 if (photo) {
                     setProfilePhoto(photo);
-                    setUser((prev: any) => ({ ...prev, profilePicture: photo }));
+                    setUser((prev: any) => prev ? { ...prev, profilePicture: photo } : prev);
                 }
             });
         }
     }, [user?.profilePicture]);
+
+    React.useEffect(() => {
+        if (user) {
+            setFormValues(prev => ({
+                ...prev,
+                firstName: editingFields.firstName ? prev.firstName : (user.firstName ?? ''),
+                lastName: editingFields.lastName ? prev.lastName : (user.lastName ?? ''),
+                mobileNumber: editingFields.mobileNumber ? prev.mobileNumber : (user.mobileNumber ?? ''),
+                email: editingFields.email ? prev.email : (user.email ?? ''),
+            }));
+        }
+    }, [user?.firstName, user?.lastName, user?.mobileNumber, user?.email]);
+
+    React.useEffect(() => {
+        if (!user?.firstName) {
+            api.get('/auth/me')
+                .then(async (res) => {
+                    if (res.data?.user) {
+                        const savedPhoto = await getStoredProfilePhoto();
+                        const fullUser = {
+                            ...res.data.user,
+                            profilePicture: res.data.user.profilePicture || savedPhoto,
+                        };
+                        setUser((prev: any) => ({ ...(prev || {}), ...fullUser }));
+                        await SecureStore.setItemAsync('userData', JSON.stringify(fullUser)).catch(() => {});
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [user?.firstName, setUser]);
 
     const updatePhoto = async (uriOrBase64: string) => {
         setUploadingPhoto(true);
@@ -328,7 +358,11 @@ export default function EditProfileScreen() {
                 return;
             }
 
-            if (data.user) setUser({ ...data.user, profilePicture: profilePhoto || data.user.profilePicture });
+            if (data.user) {
+                const fullUser = { ...data.user, profilePicture: profilePhoto || data.user.profilePicture };
+                setUser(fullUser);
+                await SecureStore.setItemAsync('userData', JSON.stringify(fullUser)).catch(() => {});
+            }
             Alert.alert("Success", "Profile updated successfully.");
             
             // Reset edit state
@@ -348,7 +382,11 @@ export default function EditProfileScreen() {
         setError(null);
         try {
             const res = await api.post('/driver/edit-profile/verify-update', { code: otpCode });
-            if (res.data.user) setUser({ ...res.data.user, profilePicture: profilePhoto || res.data.user.profilePicture });
+            if (res.data.user) {
+                const fullUser = { ...res.data.user, profilePicture: profilePhoto || res.data.user.profilePicture };
+                setUser(fullUser);
+                await SecureStore.setItemAsync('userData', JSON.stringify(fullUser)).catch(() => {});
+            }
             setPendingOtpData(null);
             setEditingFields({});
             setFormValues(prev => ({ ...prev, password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
