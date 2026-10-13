@@ -309,11 +309,27 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    socket.on('ride_request', (data: any) => {
+    const handleIncomingDispatch = (data: any) => {
+      // Immediately acknowledge receipt to the distributor buffer
+      if (data?.bufferId) {
+        api.post('/driver/dispatch/ack', { bufferId: data.bufferId }).catch((err) => {
+          console.error('Failed to send dispatch ACK', err);
+        });
+      }
+
       setIncomingRide(data);
-      setTimeLeft(30); // 30 seconds to accept
+
+      let countdown = 30;
+      if (data?.expiresAt) {
+        const remaining = Math.max(1, Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000));
+        countdown = remaining;
+      }
+      setTimeLeft(countdown);
       Vibration.vibrate([0, 500, 200, 500]); // Vibrate twice
-    });
+    };
+
+    socket.on('dispatch_offer', handleIncomingDispatch);
+    socket.on('ride_request', handleIncomingDispatch);
 
     socket.on('ride_request_expired', () => {
       setIncomingRide(null);
@@ -345,7 +361,8 @@ export default function HomeScreen() {
     });
 
     return () => {
-      socket.off('ride_request');
+      socket.off('dispatch_offer', handleIncomingDispatch);
+      socket.off('ride_request', handleIncomingDispatch);
       socket.off('ride_request_expired');
       socket.off('ride_cancelled');
       socket.off('ride_status_update');
@@ -372,6 +389,20 @@ export default function HomeScreen() {
         } else if (isOnline && location) {
            updateStatusOnBackend(true, location.coords.latitude, location.coords.longitude);
         }
+
+        // Check for any buffered dispatch waiting for this driver
+        api.get('/driver/dispatch/active').then((res) => {
+          if (res.data?.offer) {
+            const offer = res.data.offer;
+            if (offer.bufferId) {
+              api.post('/driver/dispatch/ack', { bufferId: offer.bufferId }).catch(() => {});
+            }
+            setIncomingRide(offer);
+            const remaining = Math.max(1, Math.floor((new Date(offer.expiresAt).getTime() - Date.now()) / 1000));
+            setTimeLeft(remaining);
+            Vibration.vibrate([0, 500, 200, 500]);
+          }
+        }).catch(() => {});
       }
     });
     return () => {
@@ -581,7 +612,23 @@ export default function HomeScreen() {
             } else {
                 setRideState('idle');
                 setCurrentRide(null);
-                setIncomingRide(null);
+                // Check if there is an active buffered offer for this driver
+                try {
+                  const dispatchRes = await api.get('/driver/dispatch/active');
+                  if (dispatchRes.data?.offer) {
+                    const offer = dispatchRes.data.offer;
+                    if (offer.bufferId) {
+                      api.post('/driver/dispatch/ack', { bufferId: offer.bufferId }).catch(() => {});
+                    }
+                    setIncomingRide(offer);
+                    const remaining = Math.max(1, Math.floor((new Date(offer.expiresAt).getTime() - Date.now()) / 1000));
+                    setTimeLeft(remaining);
+                  } else {
+                    setIncomingRide(null);
+                  }
+                } catch (dErr) {
+                  setIncomingRide(null);
+                }
             }
         } catch (err) {
           console.error(err);
@@ -600,13 +647,18 @@ export default function HomeScreen() {
 
   const handleAcceptRide = async (rideId: string) => {
     try {
-      const res = await api.post(`/driver/ride/${rideId}/accept`);
+      let res;
+      if (incomingRide?.bufferId) {
+        res = await api.post(`/driver/dispatch/${incomingRide.bufferId}/accept`);
+      } else {
+        res = await api.post(`/driver/ride/${rideId}/accept`);
+      }
       const data = res.data;
       
       setCurrentRide(data.ride);
       setRideState('pickup');
       snapToExpanded();
-      socket?.emit('join_ride', { rideId });
+      socket?.emit('join_ride', { rideId: data.ride?._id || rideId });
 
     } catch (err: any) {
       if (DEV_BYPASS_AUTH) {
@@ -631,7 +683,7 @@ export default function HomeScreen() {
         return;
       }
       if (err.response?.status === 400 || err.response?.status === 404) {
-        Alert.alert('Error', 'Ride no longer available.');
+        Alert.alert('Error', err.response?.data?.message || 'Ride no longer available.');
       } else {
         Alert.alert('Error', 'Failed to accept ride.');
       }
@@ -641,9 +693,14 @@ export default function HomeScreen() {
   };
 
   const handleDeclineRide = async (rideId: string) => {
+    const bufferId = incomingRide?.bufferId;
     setIncomingRide(null);
     try {
-      await api.post(`/driver/ride/${rideId}/decline`);
+      if (bufferId) {
+        await api.post(`/driver/dispatch/${bufferId}/decline`);
+      } else {
+        await api.post(`/driver/ride/${rideId}/decline`);
+      }
     } catch (err) {
       console.error('Failed to decline ride', err);
     }
@@ -931,10 +988,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                     style={styles.confirmBtn}
                     activeOpacity={0.85}
-                    onPress={() => {
-                        setRideState('idle');
-                        setCurrentRide(null);
-                    }}
+                    onPress={handleDismissSummary}
                 >
                     <Text style={styles.confirmText}>
                         Back to Map {summaryCountdown !== null ? `(${summaryCountdown}s)` : ''}
@@ -1126,16 +1180,9 @@ export default function HomeScreen() {
                     </View>
                 </View>
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginVertical: 4 }}>
-                    {rideState === 'dropoff_summary' && (
-                        <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
-                    )}
-                    <Text style={[styles.sheetTitle, rideState === 'dropoff_summary' && { color: '#16a34a', marginTop: 0, marginBottom: 0 }]}>
-                        {rideState === 'dropoff_summary'
-                            ? 'Trip Completed'
-                            : (rideState === 'pickup' || rideState === 'arrived' ? 'Pick up passenger' : 'Trip started')}
-                    </Text>
-                </View>
+                <Text style={styles.sheetTitle}>
+                    {rideState === 'pickup' || rideState === 'arrived' ? 'Pick up passenger' : 'Trip started'}
+                </Text>
                 <View style={styles.divider} />
 
                 <Animated.View style={[styles.expandableContent, animatedContentStyle]}>
@@ -1155,26 +1202,6 @@ export default function HomeScreen() {
                         </Text>
                     </View>
 
-                    {rideState === 'dropoff_summary' && (
-                        currentRide?.paymentMethod === 'wallet' ? (
-                            <View style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe', borderWidth: 1, borderRadius: 10, padding: 10, marginVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                <Ionicons name="wallet-outline" size={22} color="#2563eb" />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1d4ed8' }}>WALLET SETTLED</Text>
-                                    <Text style={{ fontSize: 11.5, color: '#1e40af' }}>₱{fare} has been credited to your Finder Wallet.</Text>
-                                </View>
-                            </View>
-                        ) : (
-                            <View style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', borderWidth: 1, borderRadius: 10, padding: 10, marginVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                <Ionicons name="cash-outline" size={22} color="#d97706" />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#b45309' }}>CASH TO COLLECT</Text>
-                                    <Text style={{ fontSize: 11.5, color: '#92400e' }}>Please collect ₱{fare} in cash from the passenger.</Text>
-                                </View>
-                            </View>
-                        )
-                    )}
-
                     <View style={[styles.fareRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                         <View>
                             <Text style={styles.fareLabel}>Total Fare</Text>
@@ -1188,74 +1215,60 @@ export default function HomeScreen() {
                     </View>
                 </Animated.View>
 
-                {rideState !== 'dropoff_summary' && (
-                    <>
-                        <View style={styles.divider} />
-                        <View style={styles.actionsRow}>
-                            {rideState !== 'trip_started' && (
-                                <>
-                                    <TouchableOpacity
-                                        style={styles.actionBtn}
-                                        onPress={() =>
-                                            router.push({ pathname: '/passenger-chat', params: { name: passengerName, rideId: currentRide?._id, photo: currentRide?.passengerId?.profilePicture || '' } })
-                                        }
-                                        activeOpacity={0.7}
-                                    >
-                                        <Ionicons name="chatbubble-outline" size={22} color="#555" />
-                                        <Text style={styles.actionText}>Chat</Text>
-                                    </TouchableOpacity>
-                                    <View style={styles.actionDivider} />
-                                </>
-                            )}
+                <View style={styles.divider} />
+                <View style={styles.actionsRow}>
+                    {rideState !== 'trip_started' && (
+                        <>
+                            <TouchableOpacity
+                                style={styles.actionBtn}
+                                onPress={() =>
+                                    router.push({ pathname: '/passenger-chat', params: { name: passengerName, rideId: currentRide?._id, photo: currentRide?.passengerId?.profilePicture || '' } })
+                                }
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="chatbubble-outline" size={22} color="#555" />
+                                <Text style={styles.actionText}>Chat</Text>
+                            </TouchableOpacity>
+                            <View style={styles.actionDivider} />
+                        </>
+                    )}
 
-                            {rideState !== 'arrived' && (
-                                <>
-                                    <TouchableOpacity
-                                        style={styles.actionBtn}
-                                        onPress={snapToCollapsed}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Ionicons name="navigate-outline" size={22} color={ACCENT} />
-                                        <Text style={[styles.actionText, { color: ACCENT }]}>Navigate</Text>
-                                    </TouchableOpacity>
-                                </>
-                            )}
+                    {rideState !== 'arrived' && (
+                        <>
+                            <TouchableOpacity
+                                style={styles.actionBtn}
+                                onPress={snapToCollapsed}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="navigate-outline" size={22} color={ACCENT} />
+                                <Text style={[styles.actionText, { color: ACCENT }]}>Navigate</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
 
-                            {rideState !== 'trip_started' && (
-                                <>
-                                    <View style={styles.actionDivider} />
-                                    <TouchableOpacity
-                                        style={styles.actionBtn}
-                                        onPress={handleCancelRide}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Ionicons name="close" size={24} color="#555" />
-                                        <Text style={styles.actionText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                </>
-                            )}
-                        </View>
-                    </>
-                )}
+                    {rideState !== 'trip_started' && (
+                        <>
+                            <View style={styles.actionDivider} />
+                            <TouchableOpacity
+                                style={styles.actionBtn}
+                                onPress={handleCancelRide}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="close" size={24} color="#555" />
+                                <Text style={styles.actionText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
+                </View>
 
                 {/* Primary Action Button */}
                 <TouchableOpacity
-                    style={
-                        rideState === 'dropoff_summary'
-                            ? styles.doneBtn
-                            : (rideState === 'arrived' ? styles.pickupBtn : (rideState === 'pickup' ? styles.arrivedBtn : styles.dropOffBtn))
-                    }
+                    style={rideState === 'arrived' ? styles.pickupBtn : (rideState === 'pickup' ? styles.arrivedBtn : styles.dropOffBtn)}
                     activeOpacity={0.85}
                     onPress={handleActionPress}
                 >
-                    <Text style={
-                        rideState === 'dropoff_summary'
-                            ? styles.doneText
-                            : (rideState === 'arrived' ? styles.pickupText : (rideState === 'pickup' ? styles.arrivedText : styles.dropOffText))
-                    }>
-                        {rideState === 'dropoff_summary'
-                            ? (summaryCountdown ? `DONE (${summaryCountdown}s)` : 'DONE')
-                            : (rideState === 'pickup' ? 'ARRIVED' : (rideState === 'arrived' ? 'PICK UP' : 'DROP OFF'))}
+                    <Text style={rideState === 'arrived' ? styles.pickupText : (rideState === 'pickup' ? styles.arrivedText : styles.dropOffText)}>
+                        {rideState === 'pickup' ? 'ARRIVED' : (rideState === 'arrived' ? 'PICK UP' : 'DROP OFF')}
                     </Text>
                 </TouchableOpacity>
 
