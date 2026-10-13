@@ -33,7 +33,7 @@ const CABANATUAN_BOUNDARY = [
 const ONLINE_GREEN = '#22c55e';
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-const SHEET_EXPANDED_HEIGHT = 460;
+const SHEET_EXPANDED_HEIGHT = 490;
 const SHEET_COLLAPSED_HEIGHT = 160;
 
 type RideState = 'idle' | 'pickup' | 'arrived' | 'trip_started' | 'dropoff_summary';
@@ -183,6 +183,28 @@ export default function HomeScreen() {
   }, [incomingRide, timeLeft]);
 
   const [summaryCountdown, setSummaryCountdown] = useState<number | null>(null);
+  const currentRideRef = useRef(currentRide);
+  useEffect(() => {
+    currentRideRef.current = currentRide;
+  }, [currentRide]);
+
+  const handleDismissSummary = useCallback(async () => {
+    const rideId = currentRideRef.current?._id;
+    setRideState('idle');
+    setCurrentRide(null);
+    setSummaryCountdown(null);
+    snapToCollapsed();
+
+    try {
+      if (rideId) {
+        await api.post(`/driver/ride/${rideId}/dismiss-summary`);
+      } else {
+        await api.post('/driver/ride/dismiss-summary');
+      }
+    } catch (err) {
+      console.error('Failed to dismiss summary on backend', err);
+    }
+  }, []);
 
   // Timer for dropoff summary auto-close
   useEffect(() => {
@@ -192,8 +214,7 @@ export default function HomeScreen() {
       interval = setInterval(() => {
         setSummaryCountdown((prev) => {
           if (prev && prev <= 1) {
-            setRideState('idle');
-            setCurrentRide(null);
+            handleDismissSummary();
             return null;
           }
           return prev ? prev - 1 : null;
@@ -203,7 +224,7 @@ export default function HomeScreen() {
       setSummaryCountdown(null);
     }
     return () => clearInterval(interval);
-  }, [rideState]);
+  }, [rideState, handleDismissSummary]);
 
   // Ensure driver joins the ride room whenever connected and has a ride
   useEffect(() => {
@@ -289,11 +310,9 @@ export default function HomeScreen() {
     if (!socket || !isConnected) return;
 
     socket.on('ride_request', (data: any) => {
-      if (rideState === 'idle') {
-        setIncomingRide(data);
-        setTimeLeft(30); // 30 seconds to accept
-        Vibration.vibrate([0, 500, 200, 500]); // Vibrate twice
-      }
+      setIncomingRide(data);
+      setTimeLeft(30); // 30 seconds to accept
+      Vibration.vibrate([0, 500, 200, 500]); // Vibrate twice
     });
 
     socket.on('ride_request_expired', () => {
@@ -553,6 +572,7 @@ export default function HomeScreen() {
                   snapToExpanded();
               } else if (ride.status === 'completed') {
                   setRideState('dropoff_summary');
+                  snapToExpanded();
               } else {
                   setRideState('idle');
                   setCurrentRide(null);
@@ -728,10 +748,13 @@ export default function HomeScreen() {
                           if (result === 'too_far') return;
                           if (!result) return Alert.alert('Error', 'Failed to update status.');
                           setRideState('dropoff_summary');
+                          snapToExpanded();
                       }
                   }
               ]
           );
+      } else if (rideState === 'dropoff_summary') {
+          handleDismissSummary();
       }
   };
 
@@ -1103,9 +1126,16 @@ export default function HomeScreen() {
                     </View>
                 </View>
 
-                <Text style={styles.sheetTitle}>
-                    {rideState === 'pickup' || rideState === 'arrived' ? 'Pick up passenger' : 'Trip started'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginVertical: 4 }}>
+                    {rideState === 'dropoff_summary' && (
+                        <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+                    )}
+                    <Text style={[styles.sheetTitle, rideState === 'dropoff_summary' && { color: '#16a34a', marginTop: 0, marginBottom: 0 }]}>
+                        {rideState === 'dropoff_summary'
+                            ? 'Trip Completed'
+                            : (rideState === 'pickup' || rideState === 'arrived' ? 'Pick up passenger' : 'Trip started')}
+                    </Text>
+                </View>
                 <View style={styles.divider} />
 
                 <Animated.View style={[styles.expandableContent, animatedContentStyle]}>
@@ -1124,6 +1154,27 @@ export default function HomeScreen() {
                             {rideState === 'pickup' || rideState === 'arrived' ? pickupFull : dropoffFull}
                         </Text>
                     </View>
+
+                    {rideState === 'dropoff_summary' && (
+                        currentRide?.paymentMethod === 'wallet' ? (
+                            <View style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe', borderWidth: 1, borderRadius: 10, padding: 10, marginVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <Ionicons name="wallet-outline" size={22} color="#2563eb" />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1d4ed8' }}>WALLET SETTLED</Text>
+                                    <Text style={{ fontSize: 11.5, color: '#1e40af' }}>₱{fare} has been credited to your Finder Wallet.</Text>
+                                </View>
+                            </View>
+                        ) : (
+                            <View style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', borderWidth: 1, borderRadius: 10, padding: 10, marginVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <Ionicons name="cash-outline" size={22} color="#d97706" />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#b45309' }}>CASH TO COLLECT</Text>
+                                    <Text style={{ fontSize: 11.5, color: '#92400e' }}>Please collect ₱{fare} in cash from the passenger.</Text>
+                                </View>
+                            </View>
+                        )
+                    )}
+
                     <View style={[styles.fareRow, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                         <View>
                             <Text style={styles.fareLabel}>Total Fare</Text>
@@ -1137,61 +1188,74 @@ export default function HomeScreen() {
                     </View>
                 </Animated.View>
 
-                <View style={styles.divider} />
+                {rideState !== 'dropoff_summary' && (
+                    <>
+                        <View style={styles.divider} />
+                        <View style={styles.actionsRow}>
+                            {rideState !== 'trip_started' && (
+                                <>
+                                    <TouchableOpacity
+                                        style={styles.actionBtn}
+                                        onPress={() =>
+                                            router.push({ pathname: '/passenger-chat', params: { name: passengerName, rideId: currentRide?._id, photo: currentRide?.passengerId?.profilePicture || '' } })
+                                        }
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="chatbubble-outline" size={22} color="#555" />
+                                        <Text style={styles.actionText}>Chat</Text>
+                                    </TouchableOpacity>
+                                    <View style={styles.actionDivider} />
+                                </>
+                            )}
 
-                <View style={styles.actionsRow}>
-                    {rideState !== 'trip_started' && (
-                        <>
-                            <TouchableOpacity
-                                style={styles.actionBtn}
-                                onPress={() =>
-                                    router.push({ pathname: '/passenger-chat', params: { name: passengerName, rideId: currentRide?._id, photo: currentRide?.passengerId?.profilePicture || '' } })
-                                }
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons name="chatbubble-outline" size={22} color="#555" />
-                                <Text style={styles.actionText}>Chat</Text>
-                            </TouchableOpacity>
-                            <View style={styles.actionDivider} />
-                        </>
-                    )}
+                            {rideState !== 'arrived' && (
+                                <>
+                                    <TouchableOpacity
+                                        style={styles.actionBtn}
+                                        onPress={snapToCollapsed}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="navigate-outline" size={22} color={ACCENT} />
+                                        <Text style={[styles.actionText, { color: ACCENT }]}>Navigate</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
 
-                    {rideState !== 'arrived' && (
-                        <>
-                            <TouchableOpacity
-                                style={styles.actionBtn}
-                                onPress={snapToCollapsed}
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons name="navigate-outline" size={22} color={ACCENT} />
-                                <Text style={[styles.actionText, { color: ACCENT }]}>Navigate</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    {rideState !== 'trip_started' && (
-                        <>
-                            <View style={styles.actionDivider} />
-                            <TouchableOpacity
-                                style={styles.actionBtn}
-                                onPress={handleCancelRide}
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons name="close" size={24} color="#555" />
-                                <Text style={styles.actionText}>Cancel</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-                </View>
+                            {rideState !== 'trip_started' && (
+                                <>
+                                    <View style={styles.actionDivider} />
+                                    <TouchableOpacity
+                                        style={styles.actionBtn}
+                                        onPress={handleCancelRide}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="close" size={24} color="#555" />
+                                        <Text style={styles.actionText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
+                        </View>
+                    </>
+                )}
 
                 {/* Primary Action Button */}
                 <TouchableOpacity
-                    style={rideState === 'arrived' ? styles.pickupBtn : (rideState === 'pickup' ? styles.arrivedBtn : styles.dropOffBtn)}
+                    style={
+                        rideState === 'dropoff_summary'
+                            ? styles.doneBtn
+                            : (rideState === 'arrived' ? styles.pickupBtn : (rideState === 'pickup' ? styles.arrivedBtn : styles.dropOffBtn))
+                    }
                     activeOpacity={0.85}
                     onPress={handleActionPress}
                 >
-                    <Text style={rideState === 'arrived' ? styles.pickupText : (rideState === 'pickup' ? styles.arrivedText : styles.dropOffText)}>
-                        {rideState === 'pickup' ? 'ARRIVED' : (rideState === 'arrived' ? 'PICK UP' : 'DROP OFF')}
+                    <Text style={
+                        rideState === 'dropoff_summary'
+                            ? styles.doneText
+                            : (rideState === 'arrived' ? styles.pickupText : (rideState === 'pickup' ? styles.arrivedText : styles.dropOffText))
+                    }>
+                        {rideState === 'dropoff_summary'
+                            ? (summaryCountdown ? `DONE (${summaryCountdown}s)` : 'DONE')
+                            : (rideState === 'pickup' ? 'ARRIVED' : (rideState === 'arrived' ? 'PICK UP' : 'DROP OFF'))}
                     </Text>
                 </TouchableOpacity>
 
@@ -1305,6 +1369,8 @@ const styles = StyleSheet.create({
   pickupText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1 },
   dropOffBtn: { borderWidth: 1.5, borderColor: ACCENT, borderRadius: 50, paddingVertical: 14, alignItems: 'center', marginTop: 10, marginBottom: 4 },
   dropOffText: { color: ACCENT, fontSize: 15, fontWeight: '700', letterSpacing: 1 },
+  doneBtn: { backgroundColor: '#16a34a', borderRadius: 50, paddingVertical: 14, alignItems: 'center', marginTop: 10, marginBottom: 4 },
+  doneText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1 },
 
   emergencyFloatingBtn: {
     position: 'absolute', right: 16, zIndex: 20, backgroundColor: '#E53E3E',
