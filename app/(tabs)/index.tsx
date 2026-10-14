@@ -97,6 +97,16 @@ export default function HomeScreen() {
   const [dailyEarnings, setDailyEarnings] = useState<number | null>(null);
   const [loadingEarnings, setLoadingEarnings] = useState(false);
 
+  // TODA Terminal Queue State
+  const [queueInfo, setQueueInfo] = useState<{
+    inQueue: boolean;
+    position: number | null;
+    totalInQueue: number;
+    isDrifting: boolean;
+    driftSecondsLeft: number | null;
+    terminalName: string | null;
+  } | null>(null);
+
   // Discount passenger modal
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showRideCancelledModal, setShowRideCancelledModal] = useState(false);
@@ -358,6 +368,11 @@ export default function HomeScreen() {
       Alert.alert('Status Updated', data?.reason || "You've been marked offline due to prolonged inactivity.");
       stopTracking();
       setIsOnline(false);
+      setQueueInfo(null);
+    });
+
+    socket.on('queue_status', (data: any) => {
+      setQueueInfo(data);
     });
 
     return () => {
@@ -367,6 +382,7 @@ export default function HomeScreen() {
       socket.off('ride_cancelled');
       socket.off('ride_status_update');
       socket.off('force_offline');
+      socket.off('queue_status');
     };
   }, [socket, isConnected, rideState, currentRide]);
 
@@ -455,11 +471,16 @@ export default function HomeScreen() {
 
   const updateStatusOnBackend = async (online: boolean, lat?: number, lng?: number): Promise<boolean> => {
     try {
-      await api.post('/driver/status', {
+      const res = await api.post('/driver/status', {
         isOnline: online,
         latitude: lat,
         longitude: lng,
       });
+      if (res.data?.queueInfo) {
+        setQueueInfo(res.data.queueInfo);
+      } else if (!online) {
+        setQueueInfo(null);
+      }
       return true;
     } catch (err) {
       console.error('Failed to update status', err);
@@ -538,6 +559,7 @@ export default function HomeScreen() {
     if (isBgTracking) {
       await Location.stopLocationUpdatesAsync('background-location-task');
     }
+    setQueueInfo(null);
     await updateStatusOnBackend(false);
   };
 
@@ -553,6 +575,7 @@ export default function HomeScreen() {
     } else {
       await stopTracking();
       setIsOnline(false);
+      setQueueInfo(null);
     }
   };
 
@@ -565,6 +588,11 @@ export default function HomeScreen() {
           const statusRes = await api.get('/driver/status');
           const data = statusRes.data;
           setIsOnline(data.isOnline);
+          if (data.queueInfo) {
+            setQueueInfo(data.queueInfo);
+          } else if (!data.isOnline) {
+            setQueueInfo(null);
+          }
           if (data.isOnline && !locationSub.current) {
              startTracking();
           }
@@ -1098,6 +1126,28 @@ export default function HomeScreen() {
         )
       )}
 
+      {/* TODA Terminal Queue Badge (Upper Right) */}
+      {rideState === 'idle' && isOnline && queueInfo?.inQueue && (
+        <View style={[styles.queueBadge, { top: insets.top + 10 }]}>
+          <View
+            style={[
+              styles.queueDot,
+              queueInfo.isDrifting ? styles.queueDotDrift : styles.queueDotActive,
+            ]}
+          />
+          <View style={styles.queueContent}>
+            <Text style={styles.queueTitle}>
+              {queueInfo.terminalName || 'Pila'}: #{queueInfo.position}
+            </Text>
+            <Text style={styles.queueSub}>
+              {queueInfo.isDrifting
+                ? `Drifting (${queueInfo.driftSecondsLeft ?? 0}s left)`
+                : `${queueInfo.totalInQueue} in queue`}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Floating One Tap Emergency Button */}
       {showEmergency && (
           <TouchableOpacity
@@ -1326,6 +1376,51 @@ const styles = StyleSheet.create({
   },
   earningsBubbleLabel: { fontSize: 11, color: '#888', marginBottom: 2, fontWeight: '500' },
   earningsBubbleAmount: { fontSize: 16, fontWeight: '800', color: '#1a1a1a' },
+  queueBadge: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F262D',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    gap: 8,
+  },
+  queueDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  queueDotActive: {
+    backgroundColor: '#22c55e',
+  },
+  queueDotDrift: {
+    backgroundColor: '#eab308',
+  },
+  queueContent: {
+    flexDirection: 'column',
+  },
+  queueTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  queueSub: {
+    color: '#94a3b8',
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 1,
+  },
   bottomBar: {
     position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 12,
   },
