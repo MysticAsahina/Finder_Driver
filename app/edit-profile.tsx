@@ -45,6 +45,10 @@ function validatePassword(value: string): string | null {
     if (value && value.length > 0) {
         if (value.length < 8) return 'Password must be at least 8 characters.';
         if (value.length > 128) return 'Password is too long.';
+        if (!/(?=.*[a-z])/.test(value)) return 'Password must contain at least one lowercase letter.';
+        if (!/(?=.*[A-Z])/.test(value)) return 'Password must contain at least one uppercase letter.';
+        if (!/(?=.*\d)/.test(value)) return 'Password must contain at least one number.';
+        if (!/(?=.*[^A-Za-z0-9])/.test(value)) return 'Password must contain at least one special character.';
     }
     return null;
 }
@@ -116,6 +120,7 @@ export default function EditProfileScreen() {
         lastName: user?.lastName ?? '',
         mobileNumber: user?.mobileNumber ?? '',
         email: user?.email ?? '',
+        currentPassword: '',
         password: '',
         confirmPassword: '',
         mpin: '',
@@ -123,6 +128,7 @@ export default function EditProfileScreen() {
     });
 
     const [editingFields, setEditingFields] = useState<Record<string, boolean>>({});
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -311,10 +317,16 @@ export default function EditProfileScreen() {
         if (valError) return setError(valError);
 
         if (formValues.password) {
+            if (!formValues.currentPassword) {
+                return setError('Current password is required to change password.');
+            }
             valError = validatePassword(formValues.password);
             if (valError) return setError(valError);
             if (formValues.password !== formValues.confirmPassword) {
                 return setError('Passwords do not match.');
+            }
+            if (formValues.currentPassword === formValues.password) {
+                return setError('New password cannot be the same as your current password.');
             }
         }
         if (formValues.mpin) {
@@ -334,6 +346,7 @@ export default function EditProfileScreen() {
                 email: formValues.email.trim(),
             };
             if (formValues.password) {
+                body.currentPassword = formValues.currentPassword;
                 body.password = formValues.password;
                 body.confirmPassword = formValues.confirmPassword;
             }
@@ -359,7 +372,7 @@ export default function EditProfileScreen() {
             
             // Reset edit state
             setEditingFields({});
-            setFormValues(prev => ({ ...prev, password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
+            setFormValues(prev => ({ ...prev, currentPassword: '', password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
             
         } catch (err: any) {
             setError(err.response?.data?.message || 'Unable to reach the server.');
@@ -381,7 +394,7 @@ export default function EditProfileScreen() {
             }
             setPendingOtpData(null);
             setEditingFields({});
-            setFormValues(prev => ({ ...prev, password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
+            setFormValues(prev => ({ ...prev, currentPassword: '', password: '', confirmPassword: '', mpin: '', confirmMpin: '' }));
             setOtpCode('');
             Alert.alert("Success", "Profile updated successfully.");
         } catch (err: any) {
@@ -397,6 +410,7 @@ export default function EditProfileScreen() {
             lastName: user?.lastName ?? '',
             mobileNumber: user?.mobileNumber ?? '',
             email: user?.email ?? '',
+            currentPassword: '',
             password: '',
             confirmPassword: '',
             mpin: '',
@@ -417,6 +431,7 @@ export default function EditProfileScreen() {
                 email: formValues.email.trim(),
             };
             if (formValues.password) {
+                body.currentPassword = formValues.currentPassword;
                 body.password = formValues.password;
                 body.confirmPassword = formValues.confirmPassword;
             }
@@ -517,6 +532,23 @@ export default function EditProfileScreen() {
                                                 <View style={{ marginTop: 6 }}>
                                                     {isSecure ? (
                                                         <>
+                                                            {f.key === 'password' && (
+                                                                <View style={[s.passwordRow, { marginBottom: 8 }]}>
+                                                                    <TextInput
+                                                                        style={s.passwordInput}
+                                                                        placeholder="Current password"
+                                                                        placeholderTextColor="#aaa"
+                                                                        secureTextEntry={!showCurrentPassword}
+                                                                        value={formValues.currentPassword}
+                                                                        onChangeText={t => setFormValues(prev => ({ ...prev, currentPassword: t }))}
+                                                                        maxLength={128}
+                                                                        autoCapitalize="none"
+                                                                    />
+                                                                    <TouchableOpacity onPress={() => setShowCurrentPassword(v => !v)} style={s.eyeBtn}>
+                                                                        <EyeIcon visible={showCurrentPassword} />
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                            )}
                                                             <View style={s.passwordRow}>
                                                                 <TextInput
                                                                     style={s.passwordInput}
@@ -549,6 +581,11 @@ export default function EditProfileScreen() {
                                                                     <EyeIcon visible={showConfirm} />
                                                                 </TouchableOpacity>
                                                             </View>
+                                                            {f.key === 'password' && (
+                                                                <Text style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 15 }}>
+                                                                    Must be 8-128 characters and include uppercase, lowercase, number, and special character.
+                                                                </Text>
+                                                            )}
                                                         </>
                                                     ) : (
                                                         <TextInput
