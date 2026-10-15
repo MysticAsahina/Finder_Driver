@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useContext } from 'react';
 import { AuthContext } from '@/context/AuthContext';
-import { recordRideReport } from '@/utils/reportStorage';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -126,23 +125,7 @@ export default function ActivityScreen() {
 
         setCreatingReport(true);
         try {
-            const reportedTargetId = reportingTrip.passengerId || 'passenger-unknown';
-            const reportedTargetName = reportingTrip.name || 'Passenger';
-            const reporterId = user?._id || 'driver-current';
-
-            // 1. Record report in shared storage & check 24h threshold
-            await recordRideReport({
-                rideId: reportingTrip.id,
-                rideRefId: reportingTrip.refId,
-                reporterUserId: reporterId,
-                reporterRole: 'Driver',
-                reportedUserId: reportedTargetId,
-                reportedUserName: reportedTargetName,
-                reportedUserRole: 'Passenger',
-                reason: selectedReason,
-            });
-
-            // 2. Always create a new support ticket for the reported ride
+            // Create a new support ticket for the reported ride
             const res = await api.post('/support/tickets', { 
                 subject: "Passenger Complaint",
                 category: "Passenger Complaint",
