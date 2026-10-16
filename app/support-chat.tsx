@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
+import { SocketContext } from '@/context/SocketContext';
 import { getAppealToken } from '@/store/authStore';
 import api from '@/utils/axios';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +43,7 @@ export default function SupportChatScreen() {
     const params = useLocalSearchParams();
     const insets = useSafeAreaInsets();
     const { accessToken } = useContext(AuthContext);
+    const { socket: sharedSocket } = useContext(SocketContext);
     const [msgs, setMsgs] = useState<Message[]>([]);
     const [ticket, setTicket] = useState<any>(null);
     const [input, setInput] = useState('');
@@ -128,127 +130,148 @@ export default function SupportChatScreen() {
         }
     };
 
+    // Appeal chat socket lifecycle
     useEffect(() => {
-        if (!token) return;
+        if (!isAppeal || !token) return;
 
-        let socket: Socket;
+        let isMounted = true;
+        loadAppealChat();
 
-        if (isAppeal) {
-            loadAppealChat();
+        const appealSocket = io(API_URL, {
+            auth: { token },
+            transports: ['websocket'],
+        });
+        socketRef.current = appealSocket;
 
-            socket = io(API_URL, {
-                auth: { token },
-                transports: ['websocket'],
-            });
-
-            socket.on('connect', () => {
-                if (ticketId) {
-                    socket.emit('join_ticket', { ticketId });
-                    socket.emit('join_appeal', { appealId: ticketId });
-                }
-            });
-
-            socket.on('receive_message', (newMsg: Message) => {
-                loadAppealChat();
-            });
-            socket.on('appeal_message', () => {
-                loadAppealChat();
-            });
-            socket.on('appeal_updated', () => {
-                loadAppealChat();
-            });
-            socket.on('appeal_resolved', () => {
-                setIsResolved(true);
-                loadAppealChat();
-            });
-
-            socketRef.current = socket;
-
-            // Poll every 2.5s while chat is open so admin replies are received in real time
-            const pollInterval = setInterval(() => {
-                loadAppealChat();
-            }, 2500);
-
-            const subscription = AppState.addEventListener('change', nextAppState => {
-                if (nextAppState === 'active') {
-                    loadAppealChat();
-                    if (socket && !socket.connected) {
-                        socket.connect();
-                    }
-                } else if (nextAppState === 'background' || nextAppState === 'inactive') {
-                    if (socket && socket.connected) {
-                        socket.disconnect();
-                    }
-                }
-            });
-
-            return () => {
-                clearInterval(pollInterval);
-                subscription.remove();
-                if (socket) socket.disconnect();
-            };
-        }
-
-        async function initialize() {
-            const activeTicketId = await ensureTicket();
-            if (!activeTicketId) return;
-
-            const msgsRes = await api.get(`/support/tickets/${activeTicketId}/messages`);
-            const msgsData = msgsRes.data;
-            setMsgs(msgsData.messages || []);
-            setIsResolved(msgsData.status === 'resolved');
-            if (msgsData.ticket) {
-                setTicket(msgsData.ticket);
+        appealSocket.on('connect', () => {
+            if (!isMounted) return;
+            if (ticketId) {
+                appealSocket.emit('join_ticket', { ticketId });
+                appealSocket.emit('join_appeal', { appealId: ticketId });
             }
+        });
 
-            socket = io(API_URL, {
-                auth: { token },
-                transports: ['websocket'],
-            });
-
-            socket.on('connect', () => {
-                socket.emit('join_ticket', { ticketId: activeTicketId });
-            });
-
-            socket.on('receive_message', (newMsg: Message) => {
-                setMsgs(prev => {
-                    if (prev.some(m => m._id === newMsg._id)) return prev;
-                    const isOwnOptimistic = prev.some(m => 
-                        m.body === newMsg.body && 
-                        m.senderRole === newMsg.senderRole && 
-                        m._id.length < 24
-                    );
-                    if (isOwnOptimistic) return prev;
-                    return [...prev, newMsg];
-                });
-            });
-
-            socket.on('ticket_resolved', () => {
+        appealSocket.on('receive_message', () => {
+            if (isMounted) loadAppealChat();
+        });
+        appealSocket.on('appeal_message', () => {
+            if (isMounted) loadAppealChat();
+        });
+        appealSocket.on('appeal_updated', () => {
+            if (isMounted) loadAppealChat();
+        });
+        appealSocket.on('appeal_resolved', () => {
+            if (isMounted) {
                 setIsResolved(true);
-            });
+                loadAppealChat();
+            }
+        });
 
-            socketRef.current = socket;
-        }
-
-        initialize();
+        // Poll every 2.5s while chat is open so admin replies are received in real time
+        const pollInterval = setInterval(() => {
+            if (isMounted) loadAppealChat();
+        }, 2500);
 
         const subscription = AppState.addEventListener('change', nextAppState => {
             if (nextAppState === 'active') {
-                if (socket && !socket.connected) {
-                    socket.connect();
+                if (isMounted) loadAppealChat();
+                if (appealSocket && !appealSocket.connected) {
+                    appealSocket.connect();
                 }
             } else if (nextAppState === 'background' || nextAppState === 'inactive') {
-                if (socket && socket.connected) {
-                    socket.disconnect();
+                if (appealSocket && appealSocket.connected) {
+                    appealSocket.disconnect();
                 }
             }
         });
 
         return () => {
+            isMounted = false;
+            clearInterval(pollInterval);
             subscription.remove();
-            if (socket) socket.disconnect();
+            appealSocket.disconnect();
+            if (socketRef.current === appealSocket) {
+                socketRef.current = null;
+            }
         };
-    }, [token, isAppeal, ticketId, loadAppealChat]);
+    }, [isAppeal, token, ticketId, loadAppealChat]);
+
+    // Regular support ticket message history loader
+    useEffect(() => {
+        if (isAppeal) return;
+
+        let isMounted = true;
+
+        async function initTicketAndHistory() {
+            const activeTicketId = await ensureTicket();
+            if (!activeTicketId || !isMounted) return;
+
+            try {
+                const msgsRes = await api.get(`/support/tickets/${activeTicketId}/messages`);
+                if (!isMounted) return;
+                const msgsData = msgsRes.data;
+                setMsgs(msgsData.messages || []);
+                setIsResolved(msgsData.status === 'resolved');
+                if (msgsData.ticket) {
+                    setTicket(msgsData.ticket);
+                }
+            } catch (err) {
+                console.error("Failed to load ticket messages:", err);
+            }
+        }
+
+        initTicketAndHistory();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [isAppeal, ticketId]);
+
+    // Regular support ticket live room events using sharedSocket
+    useEffect(() => {
+        if (isAppeal || !ticketId || !sharedSocket) return;
+
+        socketRef.current = sharedSocket;
+
+        const handleReceiveMessage = (newMsg: Message) => {
+            setMsgs(prev => {
+                if (prev.some(m => m._id === newMsg._id)) return prev;
+                const isOwnOptimistic = prev.some(m => 
+                    m.body === newMsg.body && 
+                    m.senderRole === newMsg.senderRole && 
+                    m._id.length < 24
+                );
+                if (isOwnOptimistic) return prev;
+                return [...prev, newMsg];
+            });
+        };
+
+        const handleTicketResolved = () => {
+            setIsResolved(true);
+        };
+
+        const joinRoom = () => {
+            sharedSocket.emit('join_ticket', { ticketId });
+        };
+
+        if (sharedSocket.connected) {
+            joinRoom();
+        }
+
+        sharedSocket.on('connect', joinRoom);
+        sharedSocket.on('receive_message', handleReceiveMessage);
+        sharedSocket.on('ticket_resolved', handleTicketResolved);
+
+        return () => {
+            sharedSocket.off('connect', joinRoom);
+            sharedSocket.off('receive_message', handleReceiveMessage);
+            sharedSocket.off('ticket_resolved', handleTicketResolved);
+            sharedSocket.emit('leave_ticket', { ticketId });
+            if (socketRef.current === sharedSocket) {
+                socketRef.current = null;
+            }
+        };
+    }, [isAppeal, ticketId, sharedSocket]);
 
     useEffect(() => {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);

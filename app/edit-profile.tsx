@@ -639,7 +639,7 @@ export default function EditProfileScreen() {
                             )}
 
                             {!hasChanges && (
-                                <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7}>
+                                <TouchableOpacity style={s.deleteBtn} activeOpacity={0.7} onPress={() => router.push('/delete-account' as any)}>
                                     <Text style={s.deleteText}>Delete my account</Text>
                                 </TouchableOpacity>
                             )}

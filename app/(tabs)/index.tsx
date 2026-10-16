@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import * as Location from 'expo-location';
-import { AuthContext, DEV_BYPASS_AUTH } from '@/context/AuthContext';
+import { AuthContext } from '@/context/AuthContext';
 import { SocketContext } from '@/context/SocketContext';
 import RequestModal from '@/components/RequestModal';
 import DiscountPassengerModal from '@/components/DiscountPassengerModal';

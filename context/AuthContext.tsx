@@ -34,20 +34,6 @@ export const AuthContext = createContext<AuthContextType>({
   setEmergencyContactState: () => { },
 });
 
-// DEV CONFIG: Set to true to bypass login/registration for frontend development without API
-export const DEV_BYPASS_AUTH = false;
-
-const MOCK_DRIVER_USER = {
-  _id: 'dev-driver-id',
-  firstName: 'Juan',
-  lastName: 'Driver',
-  email: 'driver@finder.com',
-  mobileNumber: '09123456789',
-  role: 'driver',
-  hasMpin: false,
-  isApproved: true
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -75,19 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (accessToken && !DEV_BYPASS_AUTH) {
+    if (accessToken) {
       registerPushToken(accessToken);
     }
   }, [accessToken]);
 
   async function restoreSession() {
-    if (DEV_BYPASS_AUTH) {
-      setAccessToken('mock-dev-driver-token');
-      setUser(MOCK_DRIVER_USER);
-      setLoading(false);
-      return;
-    }
-
     try {
       // Immediately restore cached user to avoid UI flashing empty / "undefined undefined"
       const cachedUserData = await SecureStore.getItemAsync("userData").catch(() => null);
@@ -130,8 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeoutId);
       }
 
-      const data = await res.json();
-
       if (!res.ok) {
         if (res.status === 401) {
           await SecureStore.deleteItemAsync("refreshToken").catch(() => {});
@@ -143,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return;
       }
+
+      const data = await res.json();
 
       setAccessToken(data.accessToken);
       setAxiosAccessToken(data.accessToken);

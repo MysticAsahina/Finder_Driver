@@ -1,6 +1,6 @@
 import RNCallKeep from 'react-native-callkeep';
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, BackHandler, AppState, AppStateStatus } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, BackHandler, AppState, AppStateStatus, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -258,6 +258,12 @@ export default function PassengerCallScreen() {
             } catch (err) {
                 console.error("Failed to get local stream", err);
                 hasSetupWebRTC.current = false;
+                cleanup();
+                Alert.alert(
+                    "Permission Denied",
+                    "Microphone and camera permissions are required to place a call. Please check your device settings.",
+                    [{ text: "OK", onPress: () => router.back() }]
+                );
                 return;
             }
 

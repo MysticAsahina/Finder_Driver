@@ -59,6 +59,7 @@ export default function UserScreen() {
                     text: 'Logout',
                     style: 'destructive',
                     onPress: async () => {
+                        await api.post('/driver/status', { isOnline: false }).catch(() => {});
                         const refreshToken = await SecureStore.getItemAsync('refreshToken');
                         if (refreshToken) {
                             await api.post('/auth/logout', { refreshToken }).catch(() => { }); // non-fatal
