@@ -85,7 +85,7 @@ async function persistToStorage(): Promise<void> {
   try {
     if (store.driverRegToken) {
       await SecureStore.setItemAsync(STORAGE_KEY_TOKEN, store.driverRegToken);
-      const { driverRegToken, ...rest } = store;
+      const { driverRegToken, password, confirmPassword, mpin, ...rest } = store;
       await SecureStore.setItemAsync(STORAGE_KEY_DATA, JSON.stringify(rest));
     }
   } catch {

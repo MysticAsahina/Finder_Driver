@@ -15,8 +15,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       const location = locations[locations.length - 1];
       
       try {
-        await api.post('/driver/status', {
-          isOnline: true,
+        await api.post('/driver/location-ping', {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude
         }, { headers: { 'X-Is-Background': 'true' } });

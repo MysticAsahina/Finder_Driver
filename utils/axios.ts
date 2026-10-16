@@ -83,12 +83,14 @@ api.interceptors.response.use(
         }
 
         if (error.response?.status === 403 && error.response?.data?.message === "Account suspended.") {
-            const { Alert } = require('react-native');
-            Alert.alert("Account Suspended", "Your account has been suspended by an administrator.");
             await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
             await SecureStore.deleteItemAsync('accessToken').catch(() => {});
             await setAxiosAccessToken(null);
-            if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
+            if (originalRequest.headers?.['X-Is-Background'] !== 'true') {
+                const { Alert } = require('react-native');
+                Alert.alert("Account Suspended", "Your account has been suspended by an administrator.");
+                try { router.replace('/login'); } catch(e) {}
+            }
             return Promise.reject(error);
         }
 
@@ -104,13 +106,15 @@ api.interceptors.response.use(
                     return api(originalRequest);
                 }
 
-                const { Alert } = require('react-native');
-                Alert.alert("Session Expired", "Your account has been logged in on another device.");
                 await SecureStore.deleteItemAsync('refreshToken').catch(() => {});
                 await SecureStore.deleteItemAsync('accessToken').catch(() => {});
                 await SecureStore.deleteItemAsync('userData').catch(() => {});
                 await setAxiosAccessToken(null);
-                if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
+                if (originalRequest.headers?.['X-Is-Background'] !== 'true') {
+                    const { Alert } = require('react-native');
+                    Alert.alert("Session Expired", "Your account has been logged in on another device.");
+                    try { router.replace('/login'); } catch(e) {}
+                }
                 return Promise.reject(error);
             }
 
@@ -183,12 +187,13 @@ api.interceptors.response.use(
                 await SecureStore.deleteItemAsync('userData').catch(() => {});
                 await setAxiosAccessToken(null);
 
-                if (err.response?.status === 401 && err.response?.data?.message === "Session expired due to login on another device.") {
-                    const { Alert } = require('react-native');
-                    Alert.alert("Session Expired", "Your account has been logged in on another device.");
+                if (originalRequest.headers?.['X-Is-Background'] !== 'true') {
+                    if (err.response?.status === 401 && err.response?.data?.message === "Session expired due to login on another device.") {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Session Expired", "Your account has been logged in on another device.");
+                    }
+                    try { router.replace('/login'); } catch(e) {}
                 }
-
-                if (originalRequest.headers['X-Is-Background'] !== 'true') { try { router.replace('/login'); } catch(e) {} }
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;

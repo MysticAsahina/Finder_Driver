@@ -105,7 +105,7 @@ export default function WalletScreen() {
 
         setSubmittingCashOut(true);
         try {
-            const res = await api.post('/wallet/wallet/cash-out/request', {
+            const res = await api.post('/wallet/cash-out/request', {
                 amount: num,
                 accountName: accountName.trim(),
                 mobileNumber: mobileNumber.trim(),
