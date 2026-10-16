@@ -109,6 +109,20 @@ export default function DrivingLicenseScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      const currentStore = getDriverRegStore();
+      if (currentStore.licenseImgFront) {
+        setFrontImage((prev) => prev || currentStore.licenseImgFront);
+      }
+      if (currentStore.licenseImgBack) {
+        setBackImage((prev) => prev || currentStore.licenseImgBack);
+      }
+      if (currentStore.licenseNumber) {
+        setLicenseNumber((prev) => prev || currentStore.licenseNumber);
+      }
+      if (currentStore.licenseExpDate) {
+        setExpirationDate((prev) => prev || (currentStore.licenseExpDate ? new Date(currentStore.licenseExpDate) : null));
+      }
+
       const pending = getAndClearPendingImage();
       if (pending) {
         if (pending.side === 'front') {

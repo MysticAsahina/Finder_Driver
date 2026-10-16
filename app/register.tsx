@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/theme';
-import { setDriverRegToken } from '@/store/driverRegistrationStore';
+import { clearDriverRegistration, setDriverRegToken } from '@/store/driverRegistrationStore';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -50,6 +50,7 @@ export default function DriverRegistrationScreen() {
   const [loading,      setLoading]      = useState(false);
 
   React.useEffect(() => {
+    clearDriverRegistration();
     removeStoredProfilePhoto().catch(() => {});
     SecureStore.deleteItemAsync('userData').catch(() => {});
   }, []);

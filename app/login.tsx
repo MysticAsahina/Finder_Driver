@@ -1,8 +1,10 @@
 import { ACCENT } from '@/constants/theme';
 import { setPendingToken, setAppealSession } from '@/store/authStore';
+import { clearDriverRegistration, restoreDriverRegistration } from '@/store/driverRegistrationStore';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     KeyboardAvoidingView,
     Platform,
@@ -75,6 +77,33 @@ export default function LoginScreen() {
                 useNativeDriver: true,
             }),
         ]).start();
+
+        let mounted = true;
+        async function checkUnfinishedRegistration() {
+            const hasDraft = await restoreDriverRegistration();
+            if (hasDraft && mounted) {
+                Alert.alert(
+                    'Unfinished Application',
+                    'You have an incomplete driver application. Would you like to resume where you left off?',
+                    [
+                        {
+                            text: 'Discard',
+                            style: 'destructive',
+                            onPress: () => clearDriverRegistration(),
+                        },
+                        {
+                            text: 'Resume',
+                            onPress: () => router.push('/driving-license'),
+                        },
+                    ]
+                );
+            }
+        }
+        checkUnfinishedRegistration();
+
+        return () => {
+            mounted = false;
+        };
     }, []);
 
     const handleLogin = async () => {
@@ -97,6 +126,7 @@ export default function LoginScreen() {
             });
 
             const data = res.data;
+            clearDriverRegistration();
             setPendingToken(data.pendingToken);
             router.push({ pathname: '/otp', params: { flow: 'login' } });
 

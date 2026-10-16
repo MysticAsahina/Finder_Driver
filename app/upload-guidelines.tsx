@@ -1,6 +1,7 @@
 import {
   getDriverRegToken,
   setDriverRegImage,
+  setCapturingCamera,
 } from '@/store/driverRegistrationStore';
 import { setPendingImage } from '@/store/imageStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,8 +60,8 @@ interface MlKitTextRecognitionResult {
 }
 
 interface ExtractedLicenseData {
-  licenseNumber: string;
-  expirationDateYmd: string;
+  licenseNumber?: string;
+  expirationDateYmd?: string;
 }
 
 type UploadPhase = 'idle' | 'recognizing' | 'uploading';
@@ -331,15 +332,20 @@ function extractExpirationDate(lines: string[], fullText: string): string | null
   return pickBestExpirationDate(fallbackCandidates);
 }
 
-const OCR_MAX_DIMENSION = 1500;
+const OCR_MAX_DIMENSION = 1600;
 
 async function prepareImageForOcr(uri: string): Promise<string> {
-  const result = await manipulateAsync(
-    uri,
-    [{ resize: { width: OCR_MAX_DIMENSION } }],
-    { compress: 0.9, format: SaveFormat.JPEG },
-  );
-  return result.uri;
+  try {
+    const result = await manipulateAsync(
+      uri,
+      [{ resize: { width: OCR_MAX_DIMENSION } }],
+      { compress: 0.85, format: SaveFormat.JPEG },
+    );
+    return result.uri;
+  } catch (err) {
+    console.warn('Image resize failed, using original uri:', err);
+    return uri;
+  }
 }
 
 async function recognizeLicenseDetails(localUri: string): Promise<ExtractedLicenseData> {
@@ -372,25 +378,13 @@ async function recognizeLicenseDetails(localUri: string): Promise<ExtractedLicen
 
   if (!licenseNumber && !expirationDateYmd) {
     throw new LicenseRecognitionError(
-      "We couldn't read your license number and expiration date. Please try again with a clearer front image."
-    );
-  }
-
-  if (!licenseNumber) {
-    throw new LicenseRecognitionError(
-      "We couldn't clearly read your license number. Please try again with a clearer front image."
-    );
-  }
-
-  if (!expirationDateYmd) {
-    throw new LicenseRecognitionError(
-      "We couldn't clearly read your license expiration date. Please try again with a clearer front image."
+      "We couldn't read your license number and expiration date."
     );
   }
 
   return {
-    licenseNumber,
-    expirationDateYmd,
+    licenseNumber: licenseNumber ?? undefined,
+    expirationDateYmd: expirationDateYmd ?? undefined,
   };
 }
 
@@ -445,7 +439,8 @@ export default function UploadGuidelinesScreen() {
   const pickAndUpload = async (source: 'gallery' | 'camera') => {
     try {
       let result: ImagePicker.ImagePickerResult;
-      const pickerQuality = isLicenseFront ? 1 : 0.8;
+      const pickerQuality = 0.8;
+      await setCapturingCamera(true);
 
       if (source === 'gallery') {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -481,6 +476,7 @@ export default function UploadGuidelinesScreen() {
       }
 
       let extractedLicenseData: ExtractedLicenseData | undefined;
+      let ocrNotice: string | null = null;
 
       setPhase(isLicenseFront ? 'recognizing' : 'uploading');
 
@@ -488,7 +484,15 @@ export default function UploadGuidelinesScreen() {
       
       if (isLicenseFront) {
         uploadUri = await prepareImageForOcr(localUri);
-        extractedLicenseData = await recognizeLicenseDetails(uploadUri);
+        try {
+          extractedLicenseData = await recognizeLicenseDetails(uploadUri);
+          if (!extractedLicenseData.licenseNumber || !extractedLicenseData.expirationDateYmd) {
+            ocrNotice = 'Photo uploaded, but some license details could not be auto-detected. Please verify or complete them manually.';
+          }
+        } catch (ocrErr: any) {
+          ocrNotice = 'Photo uploaded successfully. We could not auto-detect your license details, so please enter your license number and expiry date manually.';
+          console.warn('OCR non-fatal failure:', ocrErr?.message);
+        }
       } else {
         // Aggressively compress all other images before upload to prevent FormData OOM crashes
         uploadUri = await prepareImageForOcr(localUri);
@@ -515,6 +519,12 @@ export default function UploadGuidelinesScreen() {
           : undefined,
       );
       router.back();
+
+      if (ocrNotice) {
+        setTimeout(() => {
+          Alert.alert('Manual Verification', ocrNotice!);
+        }, 350);
+      }
     } catch (err: any) {
       if (err instanceof LicenseRecognitionError) {
         Alert.alert('Could not read license', err.message);
@@ -522,6 +532,7 @@ export default function UploadGuidelinesScreen() {
         Alert.alert('Upload failed', err.message || 'Something went wrong. Please try again.');
       }
     } finally {
+      setCapturingCamera(false).catch(() => {});
       setPhase('idle');
     }
   };
