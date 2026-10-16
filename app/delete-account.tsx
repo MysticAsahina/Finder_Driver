@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -27,14 +27,26 @@ const BackArrow = ({ onPress }: { onPress: () => void }) => (
 
 export default function DeleteAccountScreen() {
     const router = useRouter();
-    const { setAccessToken, setUser } = useContext(AuthContext);
+    const { setAccessToken, setUser, setEmergencyContactState } = useContext(AuthContext);
 
     const [confirmationText, setConfirmationText] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [isOtpStep, setIsOtpStep] = useState(false);
+    const [otpCode, setOtpCode] = useState('');
+    const [countdown, setCountdown] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleDelete = async () => {
+    useEffect(() => {
+        if (countdown <= 0) return;
+        const interval = setInterval(() => {
+            setCountdown(prev => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [countdown]);
+
+    const handleRequestOtp = async () => {
         setError(null);
         if (confirmationText !== 'DELETE') {
             setError("Please type 'DELETE' exactly to confirm.");
@@ -42,6 +54,43 @@ export default function DeleteAccountScreen() {
         }
         if (!password.trim()) {
             setError("Password is required to delete your account.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await api.post('/auth/delete-account/request-otp', {
+                confirmationText,
+                password
+            });
+            setIsOtpStep(true);
+            setCountdown(60);
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to request OTP. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResendOtp = async () => {
+        if (countdown > 0 || loading) return;
+        setError(null);
+        setLoading(true);
+        try {
+            await api.post('/auth/delete-account/resend-otp');
+            setCountdown(60);
+            Alert.alert("Code Resent", "A new verification code has been sent to your mobile number.");
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to resend OTP. Please try again later.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleFinalDelete = async () => {
+        setError(null);
+        if (!otpCode || otpCode.trim().length !== 6) {
+            setError("Please enter the 6-digit verification code.");
             return;
         }
 
@@ -57,13 +106,14 @@ export default function DeleteAccountScreen() {
                         setLoading(true);
                         try {
                             await api.delete('/auth/delete-account', {
-                                data: { confirmationText, password }
+                                data: { confirmationText, password, code: otpCode.trim() }
                             });
 
                             // Cleanup local storage
                             await SecureStore.deleteItemAsync('refreshToken');
                             setAccessToken(null);
                             setUser(null);
+                            setEmergencyContactState?.(null);
 
                             Alert.alert("Account Deleted", "Your account has been permanently deleted.");
                             router.replace('/login');
@@ -78,12 +128,21 @@ export default function DeleteAccountScreen() {
         );
     };
 
+    const handleBackPress = () => {
+        if (isOtpStep) {
+            setIsOtpStep(false);
+            setError(null);
+        } else {
+            router.back();
+        }
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.header}>
-                <BackArrow onPress={() => router.back()} />
-                <Text style={styles.headerTitle}>Delete Account</Text>
+                <BackArrow onPress={handleBackPress} />
+                <Text style={styles.headerTitle}>{isOtpStep ? "Verify Deletion" : "Delete Account"}</Text>
             </View>
 
             <KeyboardAvoidingView
@@ -91,46 +150,121 @@ export default function DeleteAccountScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <View style={styles.content}>
-                    <Text style={styles.warningTitle}>Warning: Permanent Action</Text>
-                    <Text style={styles.warningText}>
-                        Deleting your account will permanently remove all your data, including ride history and settings. This action cannot be undone.
-                    </Text>
+                    {!isOtpStep ? (
+                        <>
+                            <Text style={styles.warningTitle}>Warning: Permanent Action</Text>
+                            <Text style={styles.warningText}>
+                                Deleting your account will permanently remove all your data, including ride history and settings. This action cannot be undone.
+                            </Text>
 
-                    <Text style={styles.label}>Type "DELETE" to confirm:</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={confirmationText}
-                        onChangeText={setConfirmationText}
-                        placeholder="DELETE"
-                        placeholderTextColor="#999"
-                        autoCapitalize="characters"
-                        autoCorrect={false}
-                    />
+                            <Text style={styles.label}>Type "DELETE" to confirm:</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={confirmationText}
+                                onChangeText={setConfirmationText}
+                                placeholder="DELETE"
+                                placeholderTextColor="#999"
+                                autoCapitalize="characters"
+                                autoCorrect={false}
+                                editable={!loading}
+                            />
 
-                    <Text style={styles.label}>Enter your password:</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={password}
-                        onChangeText={setPassword}
-                        placeholder="Password"
-                        placeholderTextColor="#999"
-                        secureTextEntry
-                    />
+                            <Text style={styles.label}>Enter your password:</Text>
+                            <View style={styles.passwordWrapper}>
+                                <TextInput
+                                    style={styles.passwordInput}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    placeholder="Password"
+                                    placeholderTextColor="#999"
+                                    secureTextEntry={!showPassword}
+                                    autoCapitalize="none"
+                                    editable={!loading}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setShowPassword(v => !v)}
+                                    style={styles.eyeBtn}
+                                    activeOpacity={0.7}
+                                    disabled={loading}
+                                >
+                                    <Ionicons
+                                        name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                                        size={20}
+                                        color="#888"
+                                    />
+                                </TouchableOpacity>
+                            </View>
 
-                    {error && <Text style={styles.errorText}>{error}</Text>}
+                            {error && <Text style={styles.errorText}>{error}</Text>}
 
-                    <TouchableOpacity
-                        style={[styles.deleteBtn, (loading || confirmationText !== 'DELETE' || !password) && styles.deleteBtnDisabled]}
-                        onPress={handleDelete}
-                        disabled={loading || confirmationText !== 'DELETE' || !password}
-                        activeOpacity={0.7}
-                    >
-                        {loading ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <Text style={styles.deleteBtnText}>PERMANENTLY DELETE</Text>
-                        )}
-                    </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.deleteBtn, (loading || confirmationText !== 'DELETE' || !password) && styles.deleteBtnDisabled]}
+                                onPress={handleRequestOtp}
+                                disabled={loading || confirmationText !== 'DELETE' || !password}
+                                activeOpacity={0.7}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={styles.deleteBtnText}>CONTINUE TO VERIFY</Text>
+                                )}
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        <>
+                            <Text style={styles.warningTitle}>SMS Verification</Text>
+                            <Text style={styles.warningText}>
+                                A 6-digit verification code has been sent to your registered mobile number. Please enter it to authorize permanent account deletion.
+                            </Text>
+
+                            <Text style={styles.label}>6-Digit OTP Code:</Text>
+                            <TextInput
+                                style={[styles.input, styles.otpInput]}
+                                value={otpCode}
+                                onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                                placeholder="000000"
+                                placeholderTextColor="#999"
+                                keyboardType="number-pad"
+                                maxLength={6}
+                                editable={!loading}
+                                autoFocus
+                            />
+
+                            <View style={styles.resendContainer}>
+                                {countdown > 0 ? (
+                                    <Text style={styles.resendTimerText}>Resend code in {countdown}s</Text>
+                                ) : (
+                                    <TouchableOpacity onPress={handleResendOtp} disabled={loading} activeOpacity={0.7}>
+                                        <Text style={styles.resendLink}>Resend OTP Code</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+
+                            {error && <Text style={styles.errorText}>{error}</Text>}
+
+                            <TouchableOpacity
+                                style={[styles.deleteBtn, (loading || otpCode.trim().length !== 6) && styles.deleteBtnDisabled]}
+                                onPress={handleFinalDelete}
+                                disabled={loading || otpCode.trim().length !== 6}
+                                activeOpacity={0.7}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={styles.deleteBtnText}>PERMANENTLY DELETE ACCOUNT</Text>
+                                )}
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.backStepBtn}
+                                onPress={() => { setIsOtpStep(false); setError(null); }}
+                                disabled={loading}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.backStepBtnText}>Back to Account Details</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -167,7 +301,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#555',
         lineHeight: 22,
-        marginBottom: 30,
+        marginBottom: 24,
     },
     label: {
         fontSize: 14,
@@ -185,6 +319,45 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
         marginBottom: 20,
+    },
+    passwordWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        marginBottom: 20,
+    },
+    passwordInput: {
+        flex: 1,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        fontSize: 16,
+        color: '#333',
+    },
+    eyeBtn: {
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+    },
+    otpInput: {
+        textAlign: 'center',
+        fontSize: 24,
+        letterSpacing: 8,
+        fontWeight: 'bold',
+    },
+    resendContainer: {
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    resendTimerText: {
+        fontSize: 14,
+        color: '#888',
+    },
+    resendLink: {
+        fontSize: 14,
+        color: ACCENT,
+        fontWeight: '600',
     },
     errorText: {
         color: '#e74c3c',
@@ -206,5 +379,15 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         letterSpacing: 1,
+    },
+    backStepBtn: {
+        alignItems: 'center',
+        paddingVertical: 14,
+        marginTop: 12,
+    },
+    backStepBtnText: {
+        fontSize: 15,
+        color: '#666',
+        fontWeight: '600',
     },
 });
