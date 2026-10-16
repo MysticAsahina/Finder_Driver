@@ -1079,6 +1079,13 @@ export default function HomeScreen() {
                     setRouteDistance(result.distance);
                     setRouteDuration(result.duration);
                     setRouteCoords(result.coordinates);
+                    if (currentRide?._id && socket && isConnected && location?.coords) {
+                      socket.emit('driver_location_update', {
+                        rideId: currentRide._id,
+                        location: { latitude: location.coords.latitude, longitude: location.coords.longitude },
+                        duration: result.duration,
+                      });
+                    }
                     if (rideState === 'pickup' && currentRide && !initialEtaSent.current[currentRide._id]) {
                       initialEtaSent.current[currentRide._id] = true;
                       api.patch(`/driver/ride/${currentRide._id}/eta`, { duration: result.duration }).catch(console.error);
