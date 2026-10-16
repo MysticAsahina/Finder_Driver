@@ -441,7 +441,7 @@ export default function WalletScreen() {
                         <TextInput
                             style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14, marginBottom: 10, color: '#1a1a1a' }}
                             placeholder="e.g. Juan Dela Cruz"
-                            placeholderTextColor="#aaa"
+                            placeholderTextColor="#888"
                             value={accountName}
                             onChangeText={setAccountName}
                         />
@@ -450,7 +450,7 @@ export default function WalletScreen() {
                         <TextInput
                             style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14, marginBottom: 12, color: '#1a1a1a' }}
                             placeholder="09XXXXXXXXX"
-                            placeholderTextColor="#aaa"
+                            placeholderTextColor="#888"
                             keyboardType="phone-pad"
                             maxLength={11}
                             value={mobileNumber}
@@ -464,7 +464,7 @@ export default function WalletScreen() {
                                 style={styles.amountInput}
                                 keyboardType="numeric"
                                 placeholder="0.00"
-                                placeholderTextColor="#aaa"
+                                placeholderTextColor="#888"
                                 value={amountInput}
                                 onChangeText={setAmountInput}
                             />

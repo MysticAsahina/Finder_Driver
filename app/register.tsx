@@ -105,8 +105,8 @@ export default function DriverRegistrationScreen() {
             style={styles.input}
             value={firstName}
             onChangeText={(t) => { setError(null); setFirstName(t); }}
-            placeholder=""
-            placeholderTextColor="#aaa"
+            placeholder="Enter first name"
+            placeholderTextColor="#888"
             maxLength={MAX_NAME}
             editable={!loading}
           />
@@ -116,8 +116,8 @@ export default function DriverRegistrationScreen() {
             style={styles.input}
             value={lastName}
             onChangeText={(t) => { setError(null); setLastName(t); }}
-            placeholder=""
-            placeholderTextColor="#aaa"
+            placeholder="Enter last name"
+            placeholderTextColor="#888"
             maxLength={MAX_NAME}
             editable={!loading}
           />
@@ -133,7 +133,7 @@ export default function DriverRegistrationScreen() {
               value={mobileNumber}
               onChangeText={(t) => { setError(null); setMobileNumber(t.replace(/[^0-9]/g, '')); }}
               placeholder="9XXXXXXXXX"
-              placeholderTextColor="#aaa"
+              placeholderTextColor="#888"
               keyboardType="phone-pad"
               maxLength={10}
               editable={!loading}

@@ -141,7 +141,8 @@ export default function CreatePasswordScreen() {
                 value={password}
                 onChangeText={(t) => { setError(null); setPassword(t); }}
                 secureTextEntry={!showPassword}
-                placeholder=""
+                placeholder="Enter new password"
+                placeholderTextColor="#999"
                 maxLength={MAX_PASSWORD}
                 editable={!loading}
               />
@@ -157,7 +158,8 @@ export default function CreatePasswordScreen() {
                 value={confirmPassword}
                 onChangeText={(t) => { setError(null); setConfirmPassword(t); }}
                 secureTextEntry={!showConfirm}
-                placeholder=""
+                placeholder="Re-enter password"
+                placeholderTextColor="#999"
                 maxLength={MAX_PASSWORD}
                 editable={!loading}
               />

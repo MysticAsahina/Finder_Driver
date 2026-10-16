@@ -144,7 +144,7 @@ export default function ForgotPasswordScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="09XXXXXXXXX"
-                                placeholderTextColor="#aaa"
+                                placeholderTextColor="#888"
                                 keyboardType="phone-pad"
                                 value={mobile}
                                 onChangeText={(t) => { setError(null); setMobile(t.replace(/[^0-9]/g, '')); }}
@@ -169,7 +169,7 @@ export default function ForgotPasswordScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter 6-digit code"
-                                placeholderTextColor="#aaa"
+                                placeholderTextColor="#888"
                                 keyboardType="number-pad"
                                 value={otp}
                                 onChangeText={(t) => { setError(null); setOtp(t.replace(/[^0-9]/g, '')); }}
@@ -198,7 +198,7 @@ export default function ForgotPasswordScreen() {
                                 <TextInput
                                     style={styles.passwordInput}
                                     placeholder="New password"
-                                    placeholderTextColor="#aaa"
+                                    placeholderTextColor="#888"
                                     secureTextEntry={!showPassword}
                                     value={newPassword}
                                     onChangeText={(t) => { setError(null); setNewPassword(t); }}
@@ -213,7 +213,7 @@ export default function ForgotPasswordScreen() {
                                 <TextInput
                                     style={styles.passwordInput}
                                     placeholder="Confirm new password"
-                                    placeholderTextColor="#aaa"
+                                    placeholderTextColor="#888"
                                     secureTextEntry={!showConfirm}
                                     value={confirmPassword}
                                     onChangeText={(t) => { setError(null); setConfirmPassword(t); }}

@@ -118,7 +118,8 @@ export default function TricycleDetailsScreen() {
           style={styles.input}
           value={brandModel}
           onChangeText={(t) => { setError(null); setBrandModel(t); }}
-          placeholder=""
+          placeholder="e.g. Honda TMX 125"
+          placeholderTextColor="#999"
           maxLength={50}
         />
 
@@ -127,7 +128,8 @@ export default function TricycleDetailsScreen() {
           style={styles.input}
           value={plateNumber}
           onChangeText={(t) => { setError(null); setPlateNumber(t.toUpperCase()); }}
-          placeholder=""
+          placeholder="e.g. 123ABC"
+          placeholderTextColor="#999"
           maxLength={10}
           autoCapitalize="characters"
         />

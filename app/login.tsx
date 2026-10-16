@@ -149,7 +149,7 @@ export default function LoginScreen() {
                         <TextInput
                             style={styles.input}
                             placeholder="09XXXXXXXXX"
-                            placeholderTextColor="#aaa"
+                            placeholderTextColor="#888"
                             keyboardType="phone-pad"
                             value={mobile}
                             onChangeText={(t) => { setError(null); setMobile(t.replace(/[^0-9]/g, '')); }}
@@ -161,7 +161,7 @@ export default function LoginScreen() {
                             <TextInput
                                 style={styles.passwordInput}
                                 placeholder="Password"
-                                placeholderTextColor="#aaa"
+                                placeholderTextColor="#888"
                                 secureTextEntry={!showPassword}
                                 value={password}
                                 onChangeText={(t) => { setError(null); setPassword(t); }}

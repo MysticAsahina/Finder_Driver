@@ -162,7 +162,7 @@ export default function EmergencyContactScreen() {
                         value={firstName}
                         onChangeText={(t) => { setFirstName(t); setFormErrors(prev => ({...prev, firstName: ''})); }}
                         placeholder="Enter first name"
-                        placeholderTextColor="#bbb"
+                        placeholderTextColor="#888"
                         autoCapitalize="words"
                     />
                     {formErrors.firstName ? <Text style={s.errorText}>{formErrors.firstName}</Text> : null}
@@ -174,7 +174,7 @@ export default function EmergencyContactScreen() {
                         value={lastName}
                         onChangeText={(t) => { setLastName(t); setFormErrors(prev => ({...prev, lastName: ''})); }}
                         placeholder="Enter last name"
-                        placeholderTextColor="#bbb"
+                        placeholderTextColor="#888"
                         autoCapitalize="words"
                     />
                     {formErrors.lastName ? <Text style={s.errorText}>{formErrors.lastName}</Text> : null}
@@ -186,7 +186,7 @@ export default function EmergencyContactScreen() {
                         value={mobileNumber}
                         onChangeText={(t) => { setMobileNumber(t); setFormErrors(prev => ({...prev, mobileNumber: ''})); }}
                         placeholder="09XXXXXXXXX"
-                        placeholderTextColor="#bbb"
+                        placeholderTextColor="#888"
                         keyboardType="phone-pad"
                         maxLength={11}
                     />

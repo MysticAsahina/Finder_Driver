@@ -492,7 +492,7 @@ export default function EditProfileScreen() {
                             <TextInput
                                 style={s.input}
                                 placeholder="Enter 6-digit OTP"
-                                placeholderTextColor="#aaa"
+                                placeholderTextColor="#888"
                                 value={otpCode}
                                 onChangeText={t => { setError(null); setOtpCode(t.replace(/[^0-9]/g, '')); }}
                                 keyboardType="number-pad"
@@ -537,7 +537,7 @@ export default function EditProfileScreen() {
                                                                     <TextInput
                                                                         style={s.passwordInput}
                                                                         placeholder="Current password"
-                                                                        placeholderTextColor="#aaa"
+                                                                        placeholderTextColor="#888"
                                                                         secureTextEntry={!showCurrentPassword}
                                                                         value={formValues.currentPassword}
                                                                         onChangeText={t => setFormValues(prev => ({ ...prev, currentPassword: t }))}
@@ -553,7 +553,7 @@ export default function EditProfileScreen() {
                                                                 <TextInput
                                                                     style={s.passwordInput}
                                                                     placeholder={f.placeholder}
-                                                                    placeholderTextColor="#aaa"
+                                                                    placeholderTextColor="#888"
                                                                     secureTextEntry={!showPassword}
                                                                     value={formValues[f.key]}
                                                                     onChangeText={t => setFormValues(prev => ({ ...prev, [f.key]: f.keyboard === 'number-pad' ? t.replace(/[^0-9]/g, '') : t }))}
@@ -569,7 +569,7 @@ export default function EditProfileScreen() {
                                                                 <TextInput
                                                                     style={s.passwordInput}
                                                                     placeholder={f.confirmPlaceholder}
-                                                                    placeholderTextColor="#aaa"
+                                                                    placeholderTextColor="#888"
                                                                     secureTextEntry={!showConfirm}
                                                                     value={f.key === 'password' ? formValues.confirmPassword : formValues.confirmMpin}
                                                                     onChangeText={t => setFormValues(prev => ({ ...prev, [f.key === 'password' ? 'confirmPassword' : 'confirmMpin']: f.keyboard === 'number-pad' ? t.replace(/[^0-9]/g, '') : t }))}
@@ -593,7 +593,7 @@ export default function EditProfileScreen() {
                                                             value={formValues[f.key]}
                                                             onChangeText={t => setFormValues(prev => ({ ...prev, [f.key]: f.keyboard === 'phone-pad' ? t.replace(/[^0-9]/g, '') : t }))}
                                                             placeholder={f.placeholder}
-                                                            placeholderTextColor="#aaa"
+                                                            placeholderTextColor="#888"
                                                             keyboardType={f.keyboard ?? 'default'}
                                                             maxLength={f.maxLength}
                                                             autoCapitalize={f.key === 'email' ? 'none' : 'words'}

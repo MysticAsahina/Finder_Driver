@@ -423,7 +423,7 @@ export default function PassengerChatScreen() {
                                 value={inputText}
                                 onChangeText={setInputText}
                                 placeholder="Write a message..."
-                                placeholderTextColor="#bbb"
+                                placeholderTextColor="#888"
                                 onSubmitEditing={sendMessage}
                                 returnKeyType="send"
                                 editable={!uploading}

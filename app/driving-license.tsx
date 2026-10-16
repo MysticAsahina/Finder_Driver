@@ -209,6 +209,7 @@ export default function DrivingLicenseScreen() {
           value={licenseNumber}
           onChangeText={(text) => { setError(null); setLicenseNumber(text.toUpperCase()); }}
           placeholder="A00-00-000000"
+          placeholderTextColor="#999"
           maxLength={20}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -303,7 +304,7 @@ const styles = StyleSheet.create({
   nextText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
   dateButton: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#f0f0f0', marginBottom: 20 },
   dateButtonText: { fontSize: 15, color: '#222' },
-  dateButtonPlaceholder: { color: '#bbb' },
+  dateButtonPlaceholder: { color: '#999' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32, paddingTop: 12, paddingHorizontal: 24 },
   iOSPicker: { width: '100%' },

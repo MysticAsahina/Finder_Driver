@@ -158,7 +158,7 @@ export default function AccountSuspendedScreen() {
                     <TextInput
                         style={styles.textArea}
                         placeholder="Explain the circumstances surrounding this suspension..."
-                        placeholderTextColor="#aaa"
+                        placeholderTextColor="#888"
                         multiline
                         textAlignVertical="top"
                         value={reason}
