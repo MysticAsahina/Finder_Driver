@@ -60,7 +60,7 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <AppLifecycleObserver />
-            <Stack initialRouteName="index">
+            <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="register" options={{ headerShown: false }} />
               <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -201,6 +201,10 @@ export default function RootLayout() {
           <Stack.Screen
             name="forgot-password"
             options={{ headerShown: false, animation: 'fade' }}
+          />
+          <Stack.Screen
+            name="delete-account"
+            options={{ headerShown: false, animation: 'slide_from_right' }}
           />
         </Stack>
         <StatusBar style="auto" />

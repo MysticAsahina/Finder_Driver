@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import React, { useContext, useState } from 'react';
 import {
     ActivityIndicator,
@@ -80,6 +80,7 @@ export default function DeleteAccountScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+            <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.header}>
                 <BackArrow onPress={() => router.back()} />
                 <Text style={styles.headerTitle}>Delete Account</Text>
