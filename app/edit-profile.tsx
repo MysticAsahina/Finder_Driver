@@ -21,6 +21,7 @@ import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import { AuthContext } from '@/context/AuthContext';
 import api from '@/utils/axios';
 import { removeStoredProfilePhoto, compressImageIfWeb } from '@/utils/photoStorage';
+import PasswordPolicyGuidelines from '@/components/PasswordPolicyGuidelines';
 
 const ACCENT = '#FF5F00';
 
@@ -589,9 +590,13 @@ export default function EditProfileScreen() {
                                                                 </TouchableOpacity>
                                                             </View>
                                                             {f.key === 'password' && (
-                                                                <Text style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 15 }}>
-                                                                    Must be 8-128 characters and include uppercase, lowercase, number, and special character.
-                                                                </Text>
+                                                                <PasswordPolicyGuidelines
+                                                                    password={formValues.password}
+                                                                    confirmPassword={formValues.confirmPassword}
+                                                                    style={{ marginTop: 8, marginBottom: 4 }}
+                                                                />
+
+
                                                             )}
                                                         </>
                                                     ) : (

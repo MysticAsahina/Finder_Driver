@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+import PasswordPolicyGuidelines from '@/components/PasswordPolicyGuidelines';
 import api from '@/utils/axios';
 
 const MIN_PASSWORD = 8;
@@ -222,6 +223,11 @@ export default function ForgotPasswordScreen() {
                                     <Ionicons name={showConfirm ? 'eye' : 'eye-off'} size={20} color="#888" />
                                 </TouchableOpacity>
                             </View>
+                            <PasswordPolicyGuidelines
+                                password={newPassword}
+                                confirmPassword={confirmPassword}
+                                style={{ marginTop: 2, marginBottom: 16 }}
+                            />
                             {error && <Text style={styles.errorText}>{error}</Text>}
                             <TouchableOpacity
                                 style={[styles.btn, loading && styles.btnDim]}

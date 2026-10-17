@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '@/utils/axios';
 import * as SecureStore from 'expo-secure-store';
 import { removeStoredProfilePhoto } from '@/utils/photoStorage';
+import PasswordPolicyGuidelines from '@/components/PasswordPolicyGuidelines';
 
 const ACCENT       = Colors.light.tint;
 const MIN_PASSWORD = 8;
@@ -169,6 +170,8 @@ export default function CreatePasswordScreen() {
                 <Ionicons name={showConfirm ? 'eye' : 'eye-off'} size={22} color="#999" />
               </TouchableOpacity>
             </View>
+
+            <PasswordPolicyGuidelines password={password} confirmPassword={confirmPassword} style={{ marginTop: 0, marginBottom: 16 }} />
 
             {error && <Text style={styles.errorText}>{error}</Text>}
 
