@@ -1,7 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Dimensions,
+  Linking,
   Modal,
   Platform,
   StyleSheet,
@@ -14,6 +16,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Ellipse, Line, Path, Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { setCapturingCamera } from '@/store/driverRegistrationStore';
 
 interface GuidedCameraModalProps {
   visible: boolean;
@@ -29,10 +32,11 @@ export default function GuidedCameraModal({
   onClose,
 }: GuidedCameraModalProps) {
   const insets = useSafeAreaInsets();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [facing, setFacing] = useState<'front' | 'back'>('front');
   const [isCapturing, setIsCapturing] = useState(false);
+  const hasRequestedOnOpen = useRef(false);
 
   const isHolding = side === 'holding';
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -48,6 +52,40 @@ export default function GuidedCameraModal({
   const cardY = screenHeight * 0.42;
   const cardW = screenWidth * 0.38;
   const cardH = cardW * 0.65;
+
+  // Manage registration camera state and initial permission check
+  useEffect(() => {
+    if (visible) {
+      setCapturingCamera(true).catch(() => {});
+
+      if (!permission) {
+        // Permission status is still loading
+        getPermission().catch(() => {});
+      } else if (!permission.granted) {
+        // If undetermined, prompt the user once automatically
+        if (permission.status === 'undetermined' && !hasRequestedOnOpen.current) {
+          hasRequestedOnOpen.current = true;
+          requestPermission().catch(() => {});
+        }
+      }
+    } else {
+      setCapturingCamera(false).catch(() => {});
+      hasRequestedOnOpen.current = false;
+    }
+  }, [visible, permission?.status]);
+
+  // When returning to the app from Android Settings, re-check permission status automatically
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && visible) {
+        getPermission().catch(() => {});
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [visible]);
 
   const handleCapture = async () => {
     if (!cameraRef.current || isCapturing) return;
@@ -66,6 +104,7 @@ export default function GuidedCameraModal({
       console.error('Camera capture error:', err);
     } finally {
       setIsCapturing(false);
+      setCapturingCamera(false).catch(() => {});
     }
   };
 
@@ -81,8 +120,14 @@ export default function GuidedCameraModal({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        {/* Permission Request View */}
-        {!permission?.granted ? (
+        {/* Permission Loading State */}
+        {permission === null ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FF5F00" />
+            <Text style={styles.loadingText}>Initializing camera...</Text>
+          </View>
+        ) : !permission.granted ? (
+          /* Permission Request / Blocked View */
           <SafeAreaView style={styles.permissionContainer}>
             <View style={styles.permissionCard}>
               <View style={styles.iconCircle}>
@@ -90,15 +135,27 @@ export default function GuidedCameraModal({
               </View>
               <Text style={styles.permissionTitle}>Camera Access Needed</Text>
               <Text style={styles.permissionDesc}>
-                We need access to your camera to capture your face verification photo.
+                {permission.canAskAgain
+                  ? 'We need access to your camera to capture your face verification photo with alignment guides.'
+                  : 'Camera access has been disabled. Please open device settings to allow camera permissions for FINDER.'}
               </Text>
-              <TouchableOpacity
-                style={styles.grantBtn}
-                onPress={requestPermission}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.grantBtnText}>ALLOW CAMERA</Text>
-              </TouchableOpacity>
+              {permission.canAskAgain ? (
+                <TouchableOpacity
+                  style={styles.grantBtn}
+                  onPress={requestPermission}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.grantBtnText}>ALLOW CAMERA</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.grantBtn}
+                  onPress={() => Linking.openSettings()}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.grantBtnText}>OPEN SETTINGS</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={styles.cancelBtn}
                 onPress={onClose}
@@ -314,6 +371,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#aaa',
+    fontSize: 14,
+    fontWeight: '500',
   },
   permissionContainer: {
     flex: 1,

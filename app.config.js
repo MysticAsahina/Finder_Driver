@@ -14,7 +14,9 @@ module.exports = {
         "UIBackgroundModes": [
           "location",
           "fetch"
-        ]
+        ],
+        "NSCameraUsageDescription": "FINDER Driver needs access to your camera to capture verification and vehicle photos.",
+        "NSPhotoLibraryUsageDescription": "FINDER Driver needs access to your photo library to select verification documents."
       }
     },
     "android": {
