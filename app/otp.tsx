@@ -199,7 +199,7 @@ export default function OtpScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.content}>
           <Text style={styles.title}>OTP Verification</Text>

@@ -51,6 +51,8 @@ function EyeIcon({ visible }: { visible: boolean }) {
     );
 }
 
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+
 export default function LoginScreen() {
     const router = useRouter();
     const [mobile,       setMobile]       = useState('');
@@ -157,10 +159,7 @@ export default function LoginScreen() {
 
     return (
         <SafeAreaView style={styles.safe}>
-            <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+            <KeyboardAwareScreen contentContainerStyle={styles.scrollContent}>
                 <Animated.View
                     style={[
                         styles.inner,
@@ -250,7 +249,7 @@ export default function LoginScreen() {
                         <Text style={styles.footerLink}>Register now</Text>
                     </TouchableOpacity>
                 </View>
-            </KeyboardAvoidingView>
+            </KeyboardAwareScreen>
         </SafeAreaView>
     );
 }
@@ -258,7 +257,8 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     safe:            { flex: 1, backgroundColor: '#fff' },
     flex:            { flex: 1 },
-    inner:           { flex: 1, paddingHorizontal: 24, paddingTop: 36 },
+    scrollContent:   { flexGrow: 1, justifyContent: 'space-between' },
+    inner:           { paddingHorizontal: 24, paddingTop: 36, paddingBottom: 20 },
     header:          { marginBottom: 36 },
     title:           { fontSize: 28, fontWeight: '800', color: ACCENT, marginBottom: 6 },
     subtitle:        { fontSize: 14, fontWeight: '600', color: ACCENT },

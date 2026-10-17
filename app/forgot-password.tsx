@@ -13,6 +13,7 @@ import {
     Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import api from '@/utils/axios';
 
 const MIN_PASSWORD = 8;
@@ -116,10 +117,7 @@ export default function ForgotPasswordScreen() {
 
     return (
         <SafeAreaView style={styles.safe}>
-            <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+            <KeyboardAwareScreen contentContainerStyle={styles.scrollContent}>
                 {/* Back button */}
                 <TouchableOpacity
                     style={styles.backBtn}
@@ -236,7 +234,7 @@ export default function ForgotPasswordScreen() {
                         </>
                     )}
                 </View>
-            </KeyboardAvoidingView>
+            </KeyboardAwareScreen>
         </SafeAreaView>
     );
 }
@@ -244,8 +242,9 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
     safe:            { flex: 1, backgroundColor: '#fff' },
     flex:            { flex: 1 },
+    scrollContent:   { flexGrow: 1, paddingBottom: 24 },
     backBtn:         { margin: 16, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    inner:           { flex: 1, paddingHorizontal: 28, paddingTop: 8 },
+    inner:           { paddingHorizontal: 28, paddingTop: 8, paddingBottom: 20 },
     title:           { fontSize: 28, fontWeight: '800', color: ACCENT, marginBottom: 6 },
     stepLabel:       { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4, marginTop: 24 },
     subtitle:        { fontSize: 13, color: '#888', marginBottom: 24, lineHeight: 19 },

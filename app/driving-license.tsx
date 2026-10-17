@@ -184,6 +184,8 @@ export default function DrivingLicenseScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={true}
       >
         <Text style={styles.pageTitle}>Driving License</Text>
         <View style={styles.divider} />

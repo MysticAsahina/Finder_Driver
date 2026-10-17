@@ -453,7 +453,7 @@ export default function EditProfileScreen() {
 
     return (
         <SafeAreaView style={s.safe}>
-            <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                 <View style={s.topSection}>
                     <View style={s.headerRow}>
                         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
@@ -481,7 +481,14 @@ export default function EditProfileScreen() {
                     </View>
                 </View>
 
-                <ScrollView style={s.card} contentContainerStyle={s.cardContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <ScrollView
+                    style={s.card}
+                    contentContainerStyle={s.cardContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    automaticallyAdjustKeyboardInsets={true}
+                >
 
                     {pendingOtpData ? (
                         <>

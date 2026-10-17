@@ -80,6 +80,8 @@ export default function TricycleDetailsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={true}
       >
         <Text style={styles.pageTitle}>Tricycle Details</Text>
         <View style={styles.divider} />
