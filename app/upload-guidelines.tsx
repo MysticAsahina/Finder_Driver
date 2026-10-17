@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '@/utils/axios';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import SelfieGuideIllustration from '@/components/SelfieGuideIllustration';
+import GuidedCameraModal from '@/components/GuidedCameraModal';
 
 const GREEN = '#22c55e';
 const RED = '#e53935';
@@ -433,42 +434,13 @@ export default function UploadGuidelinesScreen() {
   const isLicenseFront = type === 'license' && side === 'front';
 
   const [phase, setPhase] = useState<UploadPhase>('idle');
+  const [showGuidedCamera, setShowGuidedCamera] = useState(false);
 
   const isBusy = phase !== 'idle';
   const statusText = phase === 'recognizing' ? 'Reading license details...' : 'Uploading image...';
 
-  const pickAndUpload = async (source: 'gallery' | 'camera') => {
+  const processAndUpload = async (localUri: string) => {
     try {
-      let result: ImagePicker.ImagePickerResult;
-      const pickerQuality = 0.8;
-      await setCapturingCamera(true);
-
-      if (source === 'gallery') {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission needed', 'Please allow access to your photo library.');
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          quality: pickerQuality,
-        });
-      } else {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission needed', 'Please allow access to your camera.');
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          quality: pickerQuality,
-        });
-      }
-
-      if (result.canceled || !result.assets[0]) return;
-
-      const localUri = result.assets[0].uri;
       const token = getDriverRegToken();
 
       if (!token) {
@@ -535,6 +507,50 @@ export default function UploadGuidelinesScreen() {
     } finally {
       setCapturingCamera(false).catch(() => {});
       setPhase('idle');
+    }
+  };
+
+  const pickAndUpload = async (source: 'gallery' | 'camera') => {
+    if (source === 'camera' && type === 'selfie') {
+      setShowGuidedCamera(true);
+      return;
+    }
+
+    try {
+      let result: ImagePicker.ImagePickerResult;
+      const pickerQuality = 0.8;
+      await setCapturingCamera(true);
+
+      if (source === 'gallery') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Please allow access to your photo library.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          quality: pickerQuality,
+        });
+      } else {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Please allow access to your camera.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          quality: pickerQuality,
+        });
+      }
+
+      if (result.canceled || !result.assets[0]) return;
+
+      await processAndUpload(result.assets[0].uri);
+    } catch (err: any) {
+      Alert.alert('Picker failed', err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setCapturingCamera(false).catch(() => {});
     }
   };
 
@@ -607,6 +623,18 @@ export default function UploadGuidelinesScreen() {
             <Text style={styles.uploadBtnText}>UPLOAD</Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {type === 'selfie' && (
+        <GuidedCameraModal
+          visible={showGuidedCamera}
+          side={side as 'selfie' | 'holding'}
+          onCapture={(capturedUri) => {
+            setShowGuidedCamera(false);
+            processAndUpload(capturedUri);
+          }}
+          onClose={() => setShowGuidedCamera(false)}
+        />
       )}
     </SafeAreaView>
   );

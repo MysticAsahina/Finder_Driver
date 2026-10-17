@@ -24,6 +24,7 @@ module.exports = {
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.monochroma.driver",
@@ -85,7 +86,13 @@ module.exports = {
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
         }
       ],
-      "@config-plugins/react-native-callkeep"
+      "@config-plugins/react-native-callkeep",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow FINDER Driver to access your camera for verification photos"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
