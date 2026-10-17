@@ -11,6 +11,7 @@ import {
     Platform,
     Image,
     ActivityIndicator,
+    AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,6 +20,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useFocusEffect } from '@react-navigation/native';
 import { ACCENT } from '@/constants/theme';
 import { AuthContext } from '@/context/AuthContext';
+import { SocketContext } from '@/context/SocketContext';
 import api from '@/utils/axios';
 
 interface Transaction {
@@ -37,6 +39,7 @@ type FilterType = 'all' | 'money_in' | 'money_out';
 export default function WalletScreen() {
     const router = useRouter();
     const { user } = useContext(AuthContext);
+    const { socket, isConnected } = useContext(SocketContext);
 
     const displayName = user
         ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Driver'
@@ -84,6 +87,42 @@ export default function WalletScreen() {
         }, [])
     );
 
+    // Real-time socket listener for wallet updates
+    useEffect(() => {
+        if (!socket || !isConnected) return;
+
+        const handleWalletUpdated = (data: any) => {
+            console.log('[Driver Wallet] Real-time wallet_updated received:', data);
+            if (data?.newBalance !== undefined) {
+                setBalance(data.newBalance);
+            }
+            if (data?.transaction) {
+                setTransactions((prev) => [
+                    data.transaction,
+                    ...prev.filter(
+                        (t) => t._id !== data.transaction._id && t.referenceNumber !== data.transaction.referenceNumber
+                    ),
+                ]);
+            }
+            fetchWalletData();
+        };
+
+        socket.on('wallet_updated', handleWalletUpdated);
+        return () => {
+            socket.off('wallet_updated', handleWalletUpdated);
+        };
+    }, [socket, isConnected]);
+
+    // Automatically refresh wallet data when switching back to app
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (nextAppState) => {
+            if (nextAppState === 'active') {
+                fetchWalletData();
+            }
+        });
+        return () => sub.remove();
+    }, []);
+
     const handleCashOut = async () => {
         const num = parseFloat(amountInput);
         if (isNaN(num) || num < 100 || num > 2000) {
@@ -111,10 +150,19 @@ export default function WalletScreen() {
                 mobileNumber: mobileNumber.trim(),
             });
 
-            setBalance(res.data.newBalance);
-            setTransactions((prev) => [res.data.transaction, ...prev]);
+            if (res.data?.newBalance !== undefined) {
+                setBalance(res.data.newBalance);
+            }
+            if (res.data?.transaction) {
+                setTransactions((prev) => [
+                    res.data.transaction,
+                    ...prev.filter((t) => t._id !== res.data.transaction._id),
+                ]);
+            }
             setAmountInput('');
             setCashOutModalVisible(false);
+
+            fetchWalletData();
 
             Alert.alert('Success', `Successfully cashed out ₱${num.toFixed(2)} to GCash (${mobileNumber.trim()}). Transfer fee: ₱0.00 (Covered by FINDER).`);
         } catch (err: any) {

@@ -375,6 +375,15 @@ export default function HomeScreen() {
       setQueueInfo(data);
     });
 
+    const handleWalletUpdated = () => {
+      api.get('/driver/ride/earnings/daily').then((res) => {
+        if (res.data?.earnings !== undefined) {
+          setDailyEarnings(res.data.earnings);
+        }
+      }).catch(() => {});
+    };
+    socket.on('wallet_updated', handleWalletUpdated);
+
     return () => {
       socket.off('dispatch_offer', handleIncomingDispatch);
       socket.off('ride_request', handleIncomingDispatch);
@@ -383,6 +392,7 @@ export default function HomeScreen() {
       socket.off('ride_status_update');
       socket.off('force_offline');
       socket.off('queue_status');
+      socket.off('wallet_updated', handleWalletUpdated);
     };
   }, [socket, isConnected, rideState, currentRide]);
 
@@ -689,27 +699,6 @@ export default function HomeScreen() {
       socket?.emit('join_ride', { rideId: data.ride?._id || rideId });
 
     } catch (err: any) {
-      if (DEV_BYPASS_AUTH) {
-        const acceptedRide = incomingRide || {
-          _id: rideId || 'dev-ride-mock-01',
-          fare: '85.00',
-          pickup: {
-            address: 'PHINMA Araullo University South, Cabanatuan',
-            coordinates: { coordinates: [120.9601, 15.4865] },
-          },
-          dropoff: {
-            address: 'Del Pilar St, Cabanatuan City, Nueva Ecija',
-            coordinates: { coordinates: [120.9673, 15.4748] },
-          },
-          passengerId: { firstName: 'Maria', lastName: 'Santos', mobileNumber: '09171234567' },
-          actualDurationMins: 12,
-          status: 'driver_assigned',
-        };
-        setCurrentRide(acceptedRide);
-        setRideState('pickup');
-        snapToExpanded();
-        return;
-      }
       if (err.response?.status === 400 || err.response?.status === 404) {
         Alert.alert('Error', err.response?.data?.message || 'Ride no longer available.');
       } else {
@@ -759,14 +748,6 @@ export default function HomeScreen() {
           return true;
       } catch (err: any) {
           console.error(err);
-          if (DEV_BYPASS_AUTH) {
-              setCurrentRide((prev: any) => ({
-                ...prev,
-                status,
-                ...(extraData || {}),
-              }));
-              return true;
-          }
           if (err.response?.status === 400 && err.response?.data?.code === 'GPS_TOO_FAR') {
               Alert.alert('Too Far', err.response.data.message);
               return 'too_far';
