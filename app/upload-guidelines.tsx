@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '@/utils/axios';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import SelfieGuideIllustration from '@/components/SelfieGuideIllustration';
 
 const GREEN = '#22c55e';
 const RED = '#e53935';
@@ -545,6 +546,10 @@ export default function UploadGuidelinesScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Upload Guidelines</Text>
+
+        {type === 'selfie' && (
+          <SelfieGuideIllustration side={side as 'selfie' | 'holding'} />
+        )}
 
         <View style={styles.sectionHeader}>
           <Ionicons name="checkmark-circle" size={22} color={GREEN} />
